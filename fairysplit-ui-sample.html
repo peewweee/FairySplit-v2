@@ -1,0 +1,447 @@
+<title>FairySplit Screens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800;900&display=swap">
+
+<style>
+:root{
+  --ground:#F8EFEF; --ground-2:#F2E5E7; --screen:#FDF7F7;
+  --card:#FFFFFF;   --ink:#1C1518;     --ink-2:#4A3B40;
+  --grey:#7E6A70;   --hair:#F0E4E7;    --hair-2:#E6D6DB;
+  --pink:#EF9BB8;   --pink-deep:#B5416B; --pink-tint:#FCEBF1; --tint-ink:#8E3159;
+  --page-ink:#1C1518; --page-sub:#6E6065; --page-rule:#E7D9DD;
+
+  /* square edges throughout — only true circles and the device bezel keep a radius */
+  --r-card:0; --r-row:0; --r-btn:0; --r-sheet:0; --r-sm:0;
+  --bw-outline:1.8px;
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme: dark){
+    --ground:#1A1416; --ground-2:#231B1E;
+    --page-ink:#F4E9EC; --page-sub:#A79399; --page-rule:#3A2E32;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#1A1416; --ground-2:#231B1E;
+  --page-ink:#F4E9EC; --page-sub:#A79399; --page-rule:#3A2E32;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--page-ink);
+  font-family:Figtree,system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:56px 24px 72px}
+
+/* ---------- page chrome ---------- */
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--pink-deep);margin:0 0 14px}
+h1{font-size:clamp(30px,4.4vw,46px);line-height:1.06;margin:0 0 14px;font-weight:800;letter-spacing:-.03em;text-wrap:balance;max-width:20ch}
+.lede{font-size:16px;line-height:1.6;color:var(--page-sub);margin:0;max-width:62ch}
+.rule{height:1px;background:var(--page-rule);border:0;margin:44px 0 40px}
+
+/* ---------- phone rail ---------- */
+.rail{display:flex;gap:28px;overflow-x:auto;padding:6px 2px 22px;scroll-snap-type:x mandatory}
+.rail::-webkit-scrollbar{height:8px}
+.rail::-webkit-scrollbar-thumb{background:var(--page-rule)}
+.slot{flex:0 0 auto;scroll-snap-align:start}
+.cap{font-size:12px;font-weight:700;color:var(--page-sub);margin:14px 0 0}
+.cap span{display:block;font-weight:500;opacity:.78;margin-top:3px;font-size:11.5px}
+
+.phone{
+  width:344px;height:730px;background:var(--card);border-radius:38px;
+  position:relative;overflow:hidden;display:flex;flex-direction:column;
+  box-shadow:0 2px 4px rgba(28,21,24,.05), 0 26px 60px -28px rgba(28,21,24,.4);
+}
+.phone.tinted{background:var(--screen)}
+
+.status{display:flex;justify-content:space-between;align-items:center;padding:13px 24px 2px;font-size:12.5px;font-weight:700;color:var(--ink)}
+.status svg{display:block}
+
+.appbar{display:flex;justify-content:space-between;align-items:center;padding:12px 22px 4px}
+.mark{font-weight:800;font-size:20px;color:var(--pink-deep);letter-spacing:-.01em}
+.mark i{font-style:normal;color:var(--ink)}
+.help{width:26px;height:26px;border-radius:50%;border:1.4px solid var(--hair-2);display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--grey)}
+
+.scroll{flex:1;overflow:hidden;padding:0 22px}
+
+.hero{position:relative;padding:14px 0 20px}
+.greet{font-size:13.5px;color:var(--grey);font-weight:500;margin:0 0 4px}
+.headline{font-size:27px;font-weight:800;letter-spacing:-.035em;line-height:1.1;margin:0;color:var(--ink);max-width:8.5ch}
+.doodle{position:absolute;right:-6px;top:0;width:104px;height:96px}
+
+/* buttons — flatter radius, heavier outline, matching the reference */
+.btn{
+  display:block;width:100%;border:0;border-radius:var(--r-btn);padding:15px;
+  font-family:inherit;font-size:15px;font-weight:700;letter-spacing:-.012em;cursor:pointer;
+}
+.btn-pink{background:var(--pink);color:var(--ink)}
+.btn-ghost{background:transparent;color:var(--ink);border:var(--bw-outline) solid var(--ink)}
+.btn:focus-visible{outline:3px solid var(--pink-deep);outline-offset:2px}
+
+.card{
+  background:var(--card);border:1px solid var(--hair);border-radius:var(--r-card);
+  padding:17px 18px;position:relative;overflow:hidden;
+  box-shadow:0 1px 2px rgba(28,21,24,.03);
+}
+.card-t{display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:700;color:var(--ink);margin:0 0 15px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lab{font-size:11.5px;color:var(--grey);font-weight:500;margin:0 0 5px}
+.val{font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.035em;font-variant-numeric:tabular-nums;margin:0}
+
+.arc{position:absolute;border:1.3px solid var(--hair);border-radius:50%;pointer-events:none}
+.arc.a{width:118px;height:118px;right:-52px;top:-46px}
+.arc.b{width:74px;height:74px;right:-16px;top:-12px}
+
+.sec{display:flex;justify-content:space-between;align-items:center;margin:22px 0 10px}
+.sec p{margin:0;font-size:11.5px;color:var(--grey);font-weight:500}
+.sec b{font-size:14.5px;color:var(--ink);font-weight:700;letter-spacing:-.025em;display:block;margin-top:2px}
+.link{font-size:12.5px;font-weight:700;color:var(--ink);border-bottom:1.8px solid var(--pink);padding-bottom:1px}
+
+.notice{background:var(--pink-tint);border-radius:var(--r-row);padding:14px 15px;display:flex;gap:11px;position:relative;overflow:hidden}
+.notice p{margin:0;font-size:12.5px;line-height:1.5;font-weight:600;color:var(--tint-ink)}
+.notice .arc{border-color:rgba(181,65,107,.2)}
+
+.row{
+  background:var(--card);border:1px solid var(--hair);border-radius:var(--r-row);
+  padding:13px 15px;display:flex;justify-content:space-between;align-items:flex-end;margin-top:9px;
+}
+.row .d{font-size:11.5px;color:var(--grey);font-weight:500;margin:0 0 3px}
+.row .m{font-size:16.5px;font-weight:800;color:var(--ink);letter-spacing:-.035em;margin:0;font-variant-numeric:tabular-nums}
+.row .r{text-align:right}
+.row .r .d{margin-bottom:4px}
+.row .r .s{font-size:12.5px;font-weight:700;color:var(--ink-2);margin:0}
+
+.chip{
+  position:absolute;left:50%;transform:translateX(-50%);bottom:96px;
+  background:var(--ink);color:#fff;border-radius:var(--r-btn);padding:9px 15px;
+  font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;
+  box-shadow:0 10px 22px -8px rgba(28,21,24,.5);
+}
+
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;padding:9px 10px 6px;border-top:1px solid var(--hair);background:var(--card)}
+.tab{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:9.5px;font-weight:600;color:#B8A6AC}
+.tab.on{color:var(--ink);font-weight:700}
+.home-bar{height:5px;width:118px;background:var(--ink);border-radius:99px;margin:7px auto 8px;opacity:.9}
+
+.dim{position:absolute;inset:0;background:rgba(56,36,44,.42);z-index:2}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:3;background:var(--card);
+  border-radius:var(--r-sheet) var(--r-sheet) 0 0;padding:10px 22px 0;
+  box-shadow:0 -12px 40px -18px rgba(28,21,24,.4);
+}
+.grab{width:40px;height:4px;background:var(--hair-2);margin:0 auto 18px}
+.sheet h3{font-size:21px;font-weight:800;letter-spacing:-.035em;margin:0 0 5px;color:var(--ink)}
+.sheet .sub{font-size:13px;color:var(--grey);font-weight:500;margin:0 0 16px}
+.per{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--grey);font-weight:600;margin-bottom:3px}
+.per-v{font-size:14.5px;font-weight:700;color:var(--ink);margin:0 0 14px;letter-spacing:-.025em}
+
+.calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.calhead b{font-size:15px;font-weight:700;letter-spacing:-.025em}
+.nav{width:27px;height:27px;border-radius:var(--r-sm);border:1.2px solid var(--hair-2);display:grid;place-items:center;color:var(--grey);font-size:11px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+.cal .dow{font-size:11px;font-weight:600;color:var(--grey);padding:4px 0 8px}
+.cal .dy{font-size:13px;font-weight:600;color:var(--ink);padding:7px 0;border-radius:var(--r-sm);font-variant-numeric:tabular-nums}
+.cal .mute{color:#D3C3C8;font-weight:500}
+.cal .in{background:var(--pink-tint);color:var(--tint-ink);font-weight:700}
+.cal .sel{background:var(--pink);color:var(--ink);font-weight:800}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin:20px 0 0}
+
+.dbar{display:flex;align-items:center;gap:12px;padding:8px 22px 14px}
+.back{width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--hair);display:grid;place-items:center;box-shadow:0 1px 2px rgba(28,21,24,.05)}
+.dbar b{flex:1;text-align:center;font-size:15.5px;font-weight:700;letter-spacing:-.025em;margin-right:34px}
+.pill{background:var(--pink-tint);padding:11px 22px;display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--tint-ink)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--pink-deep)}
+
+.big{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--hair);border-radius:var(--r-card);padding:17px 18px;box-shadow:0 1px 2px rgba(28,21,24,.03)}
+.big .d{font-size:11.5px;color:var(--grey);font-weight:500;margin:0 0 5px}
+.big .amt{font-size:29px;font-weight:800;letter-spacing:-.045em;margin:0 0 6px;color:var(--ink);font-variant-numeric:tabular-nums}
+.big .meta{font-size:12.5px;color:var(--grey);font-weight:600;margin:0;display:flex;align-items:center;gap:7px}
+.sep{width:3px;height:3px;border-radius:50%;background:var(--hair-2)}
+
+.bd{font-size:16px;font-weight:800;letter-spacing:-.035em;margin:22px 0 4px;color:var(--ink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr}
+.item{padding:15px 0;border-bottom:1px solid var(--hair)}
+.item .tick{width:17px;height:2.5px;background:var(--pink);margin-bottom:9px}
+.item .k{font-size:11.5px;color:var(--grey);font-weight:500;margin:0 0 5px}
+.item .v{font-size:14.5px;font-weight:700;color:var(--ink);margin:0;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+.item.pad{padding-right:14px}
+.foot{position:absolute;left:22px;right:22px;bottom:26px}
+
+/* ---------- analysis panel ---------- */
+.panel{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:34px;margin-top:12px}
+.panel h2{font-size:12px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--pink-deep);margin:0 0 16px}
+.sw{display:flex;align-items:center;gap:11px;padding:7px 0;border-bottom:1px solid var(--page-rule)}
+.sw i{width:26px;height:26px;flex:0 0 auto;border:1px solid rgba(0,0,0,.09)}
+.sw b{font-size:12.5px;font-weight:700}
+.sw code{margin-left:auto;font-size:11.5px;color:var(--page-sub);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.lst{margin:0;padding:0;list-style:none}
+.lst li{font-size:13px;line-height:1.5;padding:7px 0 7px 17px;position:relative;color:var(--page-sub);border-bottom:1px solid var(--page-rule)}
+.lst li::before{content:"";position:absolute;left:0;top:14px;width:8px;height:2px;background:var(--pink)}
+.lst li b{color:var(--page-ink);font-weight:700}
+.note{margin-top:34px;padding:18px 20px;border-left:2.5px solid var(--pink);background:var(--ground-2)}
+.note p{margin:0;font-size:13.5px;line-height:1.62;color:var(--page-sub)}
+.note p+p{margin-top:9px}
+.note b{color:var(--page-ink)}
+@media (max-width:620px){ .wrap{padding:36px 16px 52px} }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">UI study · after Paie by Fikri Studio</p>
+  <h1>FairySplit in soft pink</h1>
+  <p class="lede">Same three screens with every corner squared off — cards, rows, buttons and sheet all at zero radius — set throughout in Figtree, with the amber swapped for a blush palette. Nothing here is an image; every element is live markup.</p>
+
+  <hr class="rule">
+
+  <div class="rail">
+
+    <!-- ═══════════ SCREEN 1 ═══════════ -->
+    <div class="slot">
+      <div class="phone tinted">
+        <div class="appbar">
+          <div class="mark">fairy<i>split</i></div>
+          <div class="help">?</div>
+        </div>
+
+        <div class="scroll">
+          <div class="hero">
+            <p class="greet">Good evening, Luis</p>
+            <h2 class="headline">Let's settle up!</h2>
+            <svg class="doodle" viewBox="0 0 104 96" fill="none" aria-hidden="true">
+              <circle cx="63" cy="34" r="20" fill="#EF9BB8"/>
+              <circle cx="63" cy="34" r="20" stroke="#1C1518" stroke-width="2.4"/>
+              <path d="M63 24v10l7 5" stroke="#1C1518" stroke-width="2.4" stroke-linecap="round"/>
+              <path d="M40 52c-4 3-7 8-7 14 0 8 7 14 16 14h20" stroke="#1C1518" stroke-width="2.4" stroke-linecap="round"/>
+              <path d="M46 55c3-4 8-6 12-6M52 66c3-3 7-4 11-4M55 76c3-2 7-3 10-3" stroke="#1C1518" stroke-width="2.4" stroke-linecap="round"/>
+              <path d="M20 20l2.5 6L29 28.5 22.5 31 20 37l-2.5-6L11 28.5 17.5 26z" fill="#1C1518"/>
+              <path d="M92 54l1.6 3.9 3.9 1.6-3.9 1.6L92 65l-1.6-3.9-3.9-1.6 3.9-1.6z" fill="#1C1518"/>
+              <path d="M88 16l1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2z" fill="#EF9BB8" stroke="#1C1518" stroke-width="1.2"/>
+            </svg>
+          </div>
+
+          <button class="btn btn-pink">Enter my days</button>
+
+          <div class="card" style="margin-top:15px">
+            <span class="arc a"></span><span class="arc b"></span>
+            <p class="card-t">🧾 What you owe</p>
+            <div class="stats">
+              <div><p class="lab">This bill</p><p class="val">₱747.42</p></div>
+              <div><p class="lab">All bills, this period</p><p class="val">₱1,552.06</p></div>
+            </div>
+          </div>
+
+          <div class="sec">
+            <div><p>Current period</p><b>Jul 16 – Aug 13, 2026</b></div>
+            <span class="link">Add bill</span>
+          </div>
+
+          <div class="notice">
+            <span class="arc" style="width:88px;height:88px;right:-34px;top:-30px"></span>
+            <span style="font-size:15px">📅</span>
+            <p>Electricity is due Aug 24. Jem and Phoebe haven't confirmed their days yet.</p>
+          </div>
+
+          <div class="row">
+            <div><p class="d">Electricity · 23 of 28 days</p><p class="m">₱747.42</p></div>
+            <div class="r"><p class="d">Your share</p><p class="s">Itemized</p></div>
+          </div>
+          <div class="row">
+            <div><p class="d">Water · 23 of 28 days</p><p class="m">₱804.64</p></div>
+            <div class="r"><p class="d">Your share</p><p class="s">By days</p></div>
+          </div>
+        </div>
+
+        <div class="chip">Filters
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M4.5 8h7M6.5 12h3" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </div>
+
+        <div class="tabs">
+          <div class="tab on">
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none"><path d="M3 8.5L10 3l7 5.5V16a1 1 0 01-1 1h-3v-5H7v5H4a1 1 0 01-1-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+            Home</div>
+          <div class="tab">
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none"><rect x="4" y="2.5" width="12" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M7 7h6M7 10.5h6M7 14h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            Bills</div>
+          <div class="tab">
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none"><rect x="2.8" y="4" width="14.4" height="13" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M2.8 8h14.4M6.5 2.5v3M13.5 2.5v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            Days</div>
+          <div class="tab">
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none"><circle cx="7.2" cy="7.5" r="2.8" stroke="currentColor" stroke-width="1.7"/><circle cx="13.6" cy="8.4" r="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M2.5 16c0-2.5 2.1-4 4.7-4s4.7 1.5 4.7 4M13 12.4c2.3.2 4 1.6 4 3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            Room</div>
+          <div class="tab">
+            <svg width="19" height="19" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3.2" stroke="currentColor" stroke-width="1.7"/><path d="M4 17c0-3.1 2.7-5 6-5s6 1.9 6 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            Account</div>
+        </div>
+        <div class="home-bar"></div>
+      </div>
+      <p class="cap">Room home<span>Greeting · primary action · stat card · notice · bill rows</span></p>
+    </div>
+
+    <!-- ═══════════ SCREEN 2 ═══════════ -->
+    <div class="slot">
+      <div class="phone tinted">
+        <div class="status">
+          <span>9:09</span>
+          <span style="display:flex;gap:5px;align-items:center">
+            <svg width="17" height="11" viewBox="0 0 17 11" fill="#1C1518"><rect x="0" y="7" width="2.6" height="4" rx=".8"/><rect x="4" y="5" width="2.6" height="6" rx=".8"/><rect x="8" y="2.6" width="2.6" height="8.4" rx=".8"/><rect x="12" y="0" width="2.6" height="11" rx=".8"/></svg>
+            <svg width="15" height="11" viewBox="0 0 15 11" fill="none"><path d="M1 4.2a9 9 0 0113 0M3.4 6.7a5.6 5.6 0 018.2 0" stroke="#1C1518" stroke-width="1.6" stroke-linecap="round"/><circle cx="7.5" cy="9.4" r="1.3" fill="#1C1518"/></svg>
+            <svg width="24" height="11" viewBox="0 0 24 11" fill="none"><rect x=".7" y=".7" width="20" height="9.6" rx="3" stroke="#1C1518" stroke-width="1.2"/><rect x="2.4" y="2.4" width="16.6" height="6.2" rx="1.8" fill="#1C1518"/><path d="M22.4 4v3" stroke="#1C1518" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </span>
+        </div>
+
+        <div class="appbar">
+          <div class="mark">fairy<i>split</i></div>
+          <div class="help">?</div>
+        </div>
+        <div class="scroll">
+          <div class="hero">
+            <p class="greet">Good evening, Luis</p>
+            <h2 class="headline">Let's settle up!</h2>
+          </div>
+        </div>
+
+        <div class="dim"></div>
+        <div class="sheet">
+          <div class="grab"></div>
+          <h3>Select your days</h3>
+          <p class="sub">Which days were you in the unit?</p>
+
+          <div class="per">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3.2" width="12" height="11" rx="2" stroke="#7E6A70" stroke-width="1.5"/><path d="M2 6.6h12M5.4 1.8v2.4M10.6 1.8v2.4" stroke="#7E6A70" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Billing period
+          </div>
+          <p class="per-v">Jul 16 – Aug 13, 2026</p>
+
+          <div class="calhead">
+            <span class="nav">‹</span>
+            <b>August 2026</b>
+            <span class="nav">›</span>
+          </div>
+
+          <div class="cal">
+            <div class="dow">Sun</div><div class="dow">Mon</div><div class="dow">Tue</div><div class="dow">Wed</div><div class="dow">Thu</div><div class="dow">Fri</div><div class="dow">Sat</div>
+
+            <div class="dy mute">26</div><div class="dy mute">27</div><div class="dy mute">28</div><div class="dy mute">29</div><div class="dy mute">30</div><div class="dy mute">31</div><div class="dy in">1</div>
+            <div class="dy in">2</div><div class="dy in">3</div><div class="dy in">4</div><div class="dy in">5</div><div class="dy sel">6</div><div class="dy in">7</div><div class="dy in">8</div>
+            <div class="dy in">9</div><div class="dy in">10</div><div class="dy in">11</div><div class="dy in">12</div><div class="dy in">13</div><div class="dy mute">14</div><div class="dy mute">15</div>
+            <div class="dy mute">16</div><div class="dy mute">17</div><div class="dy mute">18</div><div class="dy mute">19</div><div class="dy mute">20</div><div class="dy mute">21</div><div class="dy mute">22</div>
+            <div class="dy mute">23</div><div class="dy mute">24</div><div class="dy mute">25</div><div class="dy mute">26</div><div class="dy mute">27</div><div class="dy mute">28</div><div class="dy mute">29</div>
+            <div class="dy mute">30</div><div class="dy mute">31</div><div class="dy mute">1</div><div class="dy mute">2</div><div class="dy mute">3</div><div class="dy mute">4</div><div class="dy mute">5</div>
+          </div>
+
+          <div class="pair">
+            <button class="btn btn-ghost">Cancel</button>
+            <button class="btn btn-pink">Next</button>
+          </div>
+          <div class="home-bar"></div>
+        </div>
+      </div>
+      <p class="cap">Days entry sheet<span>Dimmed backdrop · grab handle · in-period tinting · outline + filled pair</span></p>
+    </div>
+
+    <!-- ═══════════ SCREEN 3 ═══════════ -->
+    <div class="slot">
+      <div class="phone">
+        <div class="dbar">
+          <div class="back">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="#1C1518" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <b>Bill details</b>
+        </div>
+
+        <div class="pill"><span class="dot"></span> Awaiting payment</div>
+
+        <div class="scroll" style="padding-top:16px">
+          <div class="big">
+            <span class="arc a"></span><span class="arc b"></span>
+            <p class="d">Electricity · Jul 16 – Aug 13, 2026</p>
+            <p class="amt">₱747.42</p>
+            <p class="meta">Your share <span class="sep"></span> ₱1,784.00 total</p>
+          </div>
+
+          <h4 class="bd">How this was split</h4>
+
+          <div class="grid2">
+            <div class="item pad">
+              <div class="tick"></div>
+              <p class="k">Days stayed</p>
+              <p class="v">23 of 28</p>
+            </div>
+            <div class="item">
+              <div class="tick"></div>
+              <p class="k">Shared portion</p>
+              <p class="v">₱619.04</p>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="tick"></div>
+            <p class="k">Refrigerator · split 3 ways</p>
+            <p class="v">₱101.25</p>
+          </div>
+
+          <div class="item">
+            <div class="tick"></div>
+            <p class="k">Aircon · 1.5 hrs with Jem</p>
+            <p class="v">₱12.86</p>
+          </div>
+
+          <div class="item" style="border-bottom:0">
+            <div class="tick"></div>
+            <p class="k">Washing machine · 8 cycles</p>
+            <p class="v">₱14.27</p>
+          </div>
+        </div>
+
+        <div class="foot">
+          <button class="btn btn-ghost">See everyone's share</button>
+          <div class="home-bar" style="margin-bottom:0"></div>
+        </div>
+      </div>
+      <p class="cap">Bill breakdown<span>Circle back · status pill · arc-bleed hero card · pink-tick rows</span></p>
+    </div>
+
+  </div>
+
+  <hr class="rule">
+
+  <div class="panel">
+    <div>
+      <h2>Blush palette</h2>
+      <div class="sw"><i style="background:#F8EFEF"></i><b>Page ground</b><code>#F8EFEF</code></div>
+      <div class="sw"><i style="background:#FDF7F7"></i><b>Screen ground</b><code>#FDF7F7</code></div>
+      <div class="sw"><i style="background:#EF9BB8"></i><b>Pink action</b><code>#EF9BB8</code></div>
+      <div class="sw"><i style="background:#FCEBF1"></i><b>Pink tint</b><code>#FCEBF1</code></div>
+      <div class="sw"><i style="background:#B5416B"></i><b>Deep rose</b><code>#B5416B</code></div>
+      <div class="sw"><i style="background:#1C1518"></i><b>Ink</b><code>#1C1518</code></div>
+      <div class="sw"><i style="background:#7E6A70"></i><b>Warm grey</b><code>#7E6A70</code></div>
+      <div class="sw"><i style="background:#F0E4E7"></i><b>Hairline</b><code>#F0E4E7</code></div>
+    </div>
+
+    <div>
+      <h2>Geometry</h2>
+      <ul class="lst">
+        <li><b>Zero radius everywhere.</b> Cards, rows, buttons, the sheet, calendar cells — all hard corners. Softness comes entirely from the palette and the spacing.</li>
+        <li><b>Outline borders 1.8px near-black.</b> Cancel and "See everyone's share" get a heavy dark stroke, not a timid grey one.</li>
+        <li><b>Card borders 1px hairline</b> with almost no shadow — the reference separates surfaces with line, not elevation.</li>
+        <li><b>Only true circles keep a radius</b> — the help and back buttons, the status dot, the decorative arcs — plus the device bezel and home indicator, which are hardware, not interface.</li>
+        <li><b>Arc bleed</b> — thin clipped circles at card corners. The signature detail.</li>
+      </ul>
+    </div>
+
+    <div>
+      <h2>Type</h2>
+      <ul class="lst">
+        <li><b>Figtree</b>, 400–900. The original is almost certainly Gilroy, which is commercial; Figtree is the closest free match — geometric, double-storey <i>a</i>, single-storey <i>g</i>, tall x-height.</li>
+        <li><b>One family, no exceptions</b> — the wordmark is Figtree 800 too, the way <i>paié</i> sits in its own type rather than a separate logo face.</li>
+        <li><b>Tracking −.035em</b> on headings and values against relaxed 500-weight captions. Most of the perceived polish lives in that contrast.</li>
+        <li><b>Tabular numerals</b> everywhere money appears.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><b>On contrast.</b> The reference sets its grey captions very light, which fails WCAG AA at small sizes. I darkened the warm grey to <code>#7E6A70</code> — 5.0:1 on white, still reading as a quiet caption. Every text pair here clears AA; the pink is only ever a background with near-black on top, never text on white.</p>
+    <p><b>On the pink.</b> <code>#EF9BB8</code> carries the same job amber did: light enough for dark text at 8.6:1, saturated enough to be the one loud thing per screen. <code>#B5416B</code> is its readable sibling for small accents where the soft pink would disappear.</p>
+  </div>
+</div>

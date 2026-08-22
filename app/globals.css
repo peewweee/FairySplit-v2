@@ -1,26 +1,324 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+/* ============================================================================
+   FairySplit — blush design system.
+
+   Ported from `fairysplit-ui-sample.html`. Every colour, radius and border
+   weight in the app comes from a token declared HERE and nowhere else.
+   Do not write a hex code in a component.
+
+   Three rules carry the whole look:
+     1. ZERO RADIUS. Cards, rows, buttons, inputs, sheets, calendar cells — all
+        hard corners. Softness comes from the palette and the spacing, never
+        from rounding. Only TRUE CIRCLES keep a radius.
+     2. LINE, NOT ELEVATION. Surfaces separate with a 1px hairline and almost no
+        shadow. Outline buttons get a heavy 1.8px near-black stroke, not a
+        timid grey one.
+     3. ONE TYPE FAMILY. Figtree throughout, including the wordmark. Headings
+        and money values track at -0.035em against relaxed 500-weight captions.
+   ========================================================================= */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* --- blush palette, verbatim from the sample --- */
+  --ground: #f8efef; /* page ground        */
+  --ground-2: #f2e5e7; /* recessed ground    */
+  --screen: #fdf7f7; /* tinted surface     */
+  --card: #ffffff; /* card                */
+  --ink: #1c1518; /* primary text       — 16.0:1 on white */
+  --ink-2: #4a3b40; /* secondary text     — 10.0:1 on white */
+  --grey: #7e6a70; /* warm grey caption  —  5.0:1 on WHITE ONLY */
+  /* The sample keeps a second, darker grey (`--page-sub`) for captions that sit
+     on the page ground rather than on a card, and it is needed: #7e6a70 drops
+     to 4.44:1 on --ground and 4.31:1 on the tint blocks, just under AA. Use
+     this one anywhere grey is NOT on white. */
+  --grey-strong: #6e6065; /* 5.3:1 on --ground */
+  --hair: #f0e4e7; /* hairline           */
+  --hair-2: #e6d6db; /* stronger hairline  */
+  --pink: #ef9bb8; /* pink action — BACKGROUND ONLY, ink on top at 8.6:1 */
+  --pink-deep: #b5416b; /* deep rose   — the readable sibling, 5.3:1 on white */
+  --pink-tint: #fcebf1; /* pink tint block    */
+  --tint-ink: #8e3159; /* text on pink tint  —  6.7:1 on the tint */
+
+  /* --- semantic states. The sample has no success/warning/danger colours, so
+         these are an extension built to its rules: readable ink-weight colour
+         on white, each with a tint block of its own. All clear WCAG AA. --- */
+  --moss: #1f7a5c; /* paid / settled     —  5.3:1 on white */
+  --moss-tint: #e8f4ef;
+  --ember: #9a5b18; /* warning / owed     —  5.4:1 on white */
+  --ember-tint: #fbf0e4;
+  --danger: #a3261f; /* destructive        —  7.4:1 on white */
+  --danger-tint: #fbeae9;
+
+  /* --- geometry --- */
+  --radius: 0; /* THE zero-radius lever: every rounded-* utility derives from
+                  this, so squaring the app is one line. `rounded-full` is
+                  exempt by design — true circles keep their radius. */
+  /* The sample specifies 1.8px. Chrome FLOORS border-width to whole device
+     pixels, so at DPR 1 that renders as 1px — identical to the hairline, which
+     kills the very contrast the outline button exists for ("a heavy dark
+     stroke, not a timid grey one"). 2px keeps it heavy at every density. */
+  --bw-outline: 2px;
+  --shadow-card: 0 1px 2px rgba(28, 21, 24, 0.03);
+  --shadow-float: 0 2px 4px rgba(28, 21, 24, 0.05), 0 26px 60px -28px rgba(28, 21, 24, 0.4);
+
+  /* --- shadcn semantic aliases, all pointing at the tokens above --- */
+  --background: var(--ground);
+  --foreground: var(--ink);
+  --card-foreground: var(--ink);
+  --popover: var(--card);
+  --popover-foreground: var(--ink);
+  --primary: var(--pink);
+  --primary-foreground: var(--ink);
+  --secondary: var(--pink-tint);
+  --secondary-foreground: var(--tint-ink);
+  --muted: var(--screen);
+  --muted-foreground: var(--grey);
+  --accent: var(--pink-tint);
+  --accent-foreground: var(--tint-ink);
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+  --border: var(--hair);
+  --input: var(--hair-2);
+  --ring: var(--pink-deep);
+
+  --chart-1: var(--pink);
+  --chart-2: var(--moss);
+  --chart-3: var(--ember);
+  --chart-4: var(--pink-deep);
+  --chart-5: var(--grey);
+
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--pink);
+  --sidebar-primary-foreground: var(--ink);
+  --sidebar-accent: var(--pink-tint);
+  --sidebar-accent-foreground: var(--tint-ink);
+  --sidebar-border: var(--hair);
+  --sidebar-ring: var(--pink-deep);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-figtree);
+  --font-heading: var(--font-figtree);
+  --font-mono: var(--font-figtree);
+
+  /* The palette, as Tailwind utilities: bg-fairy-pink, text-fairy-grey, ... */
+  --color-fairy-ground: var(--ground);
+  --color-fairy-ground-2: var(--ground-2);
+  --color-fairy-screen: var(--screen);
+  --color-fairy-card: var(--card);
+  --color-fairy-ink: var(--ink);
+  --color-fairy-ink-2: var(--ink-2);
+  --color-fairy-grey: var(--grey);
+  --color-fairy-grey-strong: var(--grey-strong);
+  --color-fairy-hair: var(--hair);
+  --color-fairy-hair-2: var(--hair-2);
+  --color-fairy-pink: var(--pink);
+  --color-fairy-rose: var(--pink-deep);
+  --color-fairy-tint: var(--pink-tint);
+  --color-fairy-tint-ink: var(--tint-ink);
+  --color-fairy-moss: var(--moss);
+  --color-fairy-moss-tint: var(--moss-tint);
+  --color-fairy-ember: var(--ember);
+  --color-fairy-ember-tint: var(--ember-tint);
+  --color-fairy-danger: var(--danger);
+  --color-fairy-danger-tint: var(--danger-tint);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Everything derives from --radius, so all of these are 0. */
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
+  --radius-4xl: var(--radius);
+
+  --animate-sparkle: sparkle 900ms ease-out both;
+  --animate-reveal: reveal 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+  }
+  html {
+    @apply font-sans;
+  }
+
+  /* Tracking is where most of the perceived polish lives: tight headings and
+     money against relaxed 500-weight captions. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    text-wrap: balance;
+  }
+
+  /* Tabular numerals everywhere money appears. */
+  table,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The sample's focus treatment: a deep-rose ring, offset. */
+  :focus-visible {
+    outline: 3px solid var(--pink-deep);
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* A surface. Line, not elevation. */
+  .fs-card {
+    @apply relative overflow-hidden border bg-card;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* The share table is the calmest thing on screen: same hairline surface,
+     no decoration at all. */
+  .fs-table-surface {
+    @apply border bg-card;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Arc bleed — thin clipped circles at a card corner. The signature detail.
+     Decorative only; always aria-hidden and pointer-events-none. */
+  .fs-arc {
+    @apply pointer-events-none absolute rounded-full;
+    border: 1px solid var(--hair);
+  }
+  .fs-arc-a {
+    width: 118px;
+    height: 118px;
+    right: -52px;
+    top: -46px;
+  }
+  .fs-arc-b {
+    width: 74px;
+    height: 74px;
+    right: -16px;
+    top: -12px;
+  }
+
+  /* The pink tick that opens every breakdown row. */
+  .fs-tick {
+    width: 17px;
+    height: 2.5px;
+    background: var(--pink);
+  }
+
+  /* A caption-weight link with a heavy pink underline. */
+  .fs-link {
+    @apply text-fairy-ink;
+    font-size: 12.5px;
+    font-weight: 700;
+    /* 2px, not the sample's 1.8px: Chrome floors border-width to whole
+       device pixels, and a 1px pink underline reads as an accident. */
+    border-bottom: 2px solid var(--pink);
+    padding-bottom: 1px;
+  }
+
+  /* A tinted block: notices, status pills, helper callouts. */
+  .fs-notice {
+    @apply relative overflow-hidden bg-fairy-tint text-fairy-tint-ink;
+  }
+  .fs-notice .fs-arc {
+    border-color: rgba(181, 65, 107, 0.2);
+  }
+
+  /* A caption over a value — the sample's core stat unit. */
+  .fs-lab {
+    /* grey-strong, not grey: this caption appears on white, on the page ground
+       and on tint blocks, and must clear AA on all three. */
+    @apply text-fairy-grey-strong;
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+  .fs-val {
+    @apply text-fairy-ink;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes sparkle {
+  0% {
+    opacity: 0;
+    transform: translateY(2px) scale(0.6) rotate(-12deg);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.15) rotate(6deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.7) rotate(18deg);
+  }
+}
+
+/* Slide only — deliberately no opacity. The appliance section is the most
+   important interactive area on the bill screen; a decorative entrance must not
+   be able to leave it invisible, whatever happens to the animation. */
+@keyframes reveal {
+  from {
+    transform: translateY(-8px) scaleY(0.985);
+  }
+  to {
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+/* Gate ALL motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
