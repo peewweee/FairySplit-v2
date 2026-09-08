@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Pencil, Plus, Receipt } from "lucide-react";
+import { ChevronRight, Plus, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BillDialog } from "@/components/fairy/bill-dialog";
 import { EmptyState, ErrorNote, LoadingRows } from "@/components/fairy/shell-bits";
 import { SparkleBurst, useSparkle } from "@/components/fairy/sparkle-burst";
 import { applyRoundUp } from "@/lib/billing/engine";
+import { HOURS_PER_DAY } from "@/lib/billing/occupancy";
 import { splitBill } from "@/lib/billing/from-bill";
 import { formatCentavos } from "@/lib/billing/money";
 import { repo, type Bill, type Member, type Tracker } from "@/lib/data";
@@ -52,7 +53,7 @@ export function BillsPanel({ roomId, members }: { roomId: string; members: Membe
         <EmptyState
           icon={<Receipt className="size-5" aria-hidden />}
           title="No bills yet"
-          description="Add the electric bill, the water bill, the internet — anything you split. Each one carries its own dates and day counts."
+          description="Add the electric bill, the water bill, the internet — anything you split. Each one carries its own dates, and counts the hours logged inside them."
           action={<NewBillDialog roomId={roomId} members={members} />}
           className="py-10"
         />
@@ -112,7 +113,6 @@ function BillRow({
   me: Member | null;
   trackers: Tracker[];
 }) {
-  const [editing, setEditing] = useState(false);
   const billed = applyRoundUp(bill.totalCentavos, bill.roundUpToPeso);
   const mine = me ? myLine(bill, members, me, trackers) : null;
 
@@ -131,15 +131,10 @@ function BillRow({
         <span className="shrink-0 text-[11.5px] font-medium text-fairy-grey">
           {describeCoverage(bill)}
         </span>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          onClick={() => setEditing(true)}
-          aria-label={`Edit ${bill.name}`}
-          className="relative ml-auto shrink-0"
-        >
-          <Pencil className="size-3.5 text-fairy-grey" />
-        </Button>
+        {/* Decorative: the whole row is already the link, and a second
+            focusable control pointing at the same place would only add a stop
+            to the tab order. Editing lives behind the bill's own menu. */}
+        <ChevronRight className="ml-auto size-4 shrink-0 text-fairy-hair-2" aria-hidden />
       </div>
 
       <p
@@ -166,15 +161,6 @@ function BillRow({
         </div>
       )}
 
-      {editing && (
-        <BillDialog
-          open
-          onOpenChange={setEditing}
-          roomId={roomId}
-          members={members}
-          bill={bill}
-        />
-      )}
     </div>
   );
 }
@@ -230,16 +216,12 @@ export function findMe(identityName: string | undefined, members: Member[]): Mem
 
 /** This person's logged hours and their share of one bill. */
 function myLine(bill: Bill, members: Member[], me: Member, trackers: Tracker[]) {
-  const perHour = new Set(
-    bill.appliances.filter((a) => a.mode === "per_hour").map((a) => a.id),
-  );
-  const hours = bill.uses
-    .filter((u) => perHour.has(u.applianceId) && u.participantIds.includes(me.id))
-    .reduce((acc, u) => acc + u.quantity, 0);
-
   const { result } = splitBill(bill, members, trackers);
   const row = result?.rows.find((r) => r.memberId === me.id);
   if (!row) return null;
 
-  return { hours: Math.round(hours * 1000) / 1000, share: row.totalCentavos };
+  // Straight off the row the split was computed from, so this line and the
+  // bill's own summary can never quote different hours for the same stay.
+  const hours = row.days * HOURS_PER_DAY;
+  return { hours: Math.round(hours * 100) / 100, share: row.totalCentavos };
 }

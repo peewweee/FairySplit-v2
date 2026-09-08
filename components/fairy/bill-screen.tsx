@@ -225,8 +225,9 @@ function BillActions({
               Delete {bill.name}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Its dates, day counts, appliances, usage log and charges all go with
-              it. Other bills in the room are untouched.
+              Its dates, appliances, charges and any hand-edited figures go with
+              it. The logs it counted from stay in the room, and other bills are
+              untouched.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

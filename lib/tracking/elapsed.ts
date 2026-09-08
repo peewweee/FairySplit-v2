@@ -24,11 +24,21 @@ export function hoursSince(startIso: string, nowMs: number): number {
   return Math.max(0, (nowMs - started) / MS_PER_HOUR);
 }
 
+/**
+ * One person's share of an entry.
+ *
+ * An entry charged to three people is a third each — the same rule §7.2 uses
+ * for a shared appliance event, so the shares of any entry always add back up
+ * to the whole of it and the bill still reconciles.
+ */
+export function shareOf(entry: LogEntry, memberId: string): number {
+  if (!entry.participantIds.includes(memberId)) return 0;
+  return entry.quantity / entry.participantIds.length;
+}
+
 /** Everything this person has finished logging. No clock reading involved. */
 export function settledFor(tracker: Tracker, memberId: string): number {
-  return tracker.entries
-    .filter((e) => e.memberId === memberId)
-    .reduce((sum, e) => sum + e.quantity, 0);
+  return tracker.entries.reduce((sum, e) => sum + shareOf(e, memberId), 0);
 }
 
 /** The instant this person's clock started, or null if it is not running. */
@@ -118,8 +128,8 @@ export function amountForMemberInRange(
   endMs: number,
 ): number {
   return tracker.entries
-    .filter((e) => e.memberId === memberId)
-    .reduce((sum, e) => sum + amountInRange(e, startMs, endMs), 0);
+    .filter((e) => e.participantIds.includes(memberId))
+    .reduce((sum, e) => sum + amountInRange(e, startMs, endMs) / e.participantIds.length, 0);
 }
 
 /**
@@ -130,8 +140,8 @@ export function amountForMemberInRange(
  */
 export function todayFor(tracker: Tracker, memberId: string, nowMs: number): number {
   const settled = tracker.entries
-    .filter((e) => e.memberId === memberId)
-    .reduce((sum, e) => sum + amountToday(e, nowMs), 0);
+    .filter((e) => e.participantIds.includes(memberId))
+    .reduce((sum, e) => sum + amountToday(e, nowMs) / e.participantIds.length, 0);
 
   const open = runningSince(tracker, memberId);
   if (!open) return settled;
@@ -166,11 +176,12 @@ export function formatDuration(hours: number): string {
 /**
  * A logged amount, in the tracker's own unit.
  *
- * Cycles are whole things, so they never grow a decimal point. Hours and days
- * keep two places, and drop them when there is nothing after the dot.
+ * Two decimal places at most, and none when the number is whole. Cycles used to
+ * be forced to whole numbers, but an entry charged to three people gives each a
+ * third of it — rounding that to "1" would contradict the formula beside it.
  */
 export function formatQuantity(value: number, mode: TrackerMode): string {
-  if (mode === "per_cycle") return String(Math.round(value));
+  void mode;
   // String() rather than toFixed(2): 12.5 should read "12.5", not "12.50".
   return String(Math.round(value * 100) / 100);
 }

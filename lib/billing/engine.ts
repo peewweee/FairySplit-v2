@@ -65,19 +65,19 @@ export type Warning =
 
 export const WARNING_COPY: Record<Warning, { title: string; detail: string }> = {
   NO_OCCUPANCY_EQUAL_SPLIT: {
-    title: "Split equally — no days entered",
+    title: "Split equally",
     detail:
-      "Nobody has a day count on this bill, so the shared portion was divided evenly. Fill in days below to weight it by who actually stayed.",
+      "Nobody has hours inside this bill's dates, so the shared portion was divided evenly. Clock in on the room's Hours in the unit log, or add an entry to it, and the split follows who actually stayed.",
   },
   CARVEOUTS_EXCEED_TOTAL: {
     title: "Appliance estimates exceed the bill",
     detail:
-      "The appliance and charge figures add up to more than the bill itself, so they were scaled down to fit. Check the kWh ratings and the rate.",
+      "The appliance and charge figures add up to more than the bill itself, so they were scaled down to fit. Check the kWh ratings, the rate, and the amounts the logs counted.",
   },
   DAYS_EXCEED_COVERAGE: {
     title: "Someone stayed longer than the bill covers",
     detail:
-      "At least one person's days are greater than the number of days this bill covers. The split still works, but one of the two numbers is probably a typo.",
+      "At least one person's logged hours come to more days than this bill covers. The split still works, but either the bill's dates or an entry in Hours in the unit is probably wrong.",
   },
 };
 

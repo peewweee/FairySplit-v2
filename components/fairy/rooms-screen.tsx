@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Home, Info, KeyRound, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -166,6 +166,22 @@ function JoinRoomDialog() {
   const [error, setError] = useState<string | null>(null);
   const action = useRepoAction();
 
+  // An invite link is "/?join=CODE". Read straight off the URL rather than
+  // through useSearchParams, which would drag a Suspense boundary in for a
+  // string this component already has.
+  useEffect(() => {
+    const invited = new URLSearchParams(window.location.search).get("join");
+    if (!invited) return;
+    // The URL is a store React does not own, and it can only be read after
+    // hydration — the case `set-state-in-effect` documents as allowed. It runs
+    // once, on mount, and clears the param so it cannot run again.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCode(invited.toUpperCase());
+    setOpen(true);
+    // Take the code out of the address bar so a refresh does not reopen it.
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
   async function join() {
     const parsed = parseField(joinCodeSchema, code);
     if (!parsed.ok) {
@@ -184,7 +200,9 @@ function JoinRoomDialog() {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) {
+        // Clear on CLOSE, not on open: opening is also how an invite link
+        // arrives, and it brings a code with it.
+        if (!next) {
           setCode("");
           setError(null);
         }

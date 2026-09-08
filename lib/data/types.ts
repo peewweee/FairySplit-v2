@@ -292,7 +292,14 @@ export const TRACKER_MODE_META: Record<
 /** One logged amount: a finished clock run, or a number somebody typed. */
 export interface LogEntry {
   id: string;
-  memberId: string;
+  /**
+   * Who this is charged to. Never empty.
+   *
+   * A clock run has one name on it — you can only clock yourself in. A typed
+   * entry can name several, and then its cost divides equally between them,
+   * the same rule §7.2 already uses for a shared appliance event.
+   */
+  participantIds: string[];
   /** In the tracker's own unit — hours, days, or cycles. */
   quantity: number;
   /** A clock entry keeps the span it came from. A manual one has none. */
@@ -319,6 +326,13 @@ export interface Tracker {
   sortOrder: number;
   /** memberId -> ISO instant their clock started. Absent means stopped. */
   runningSince: Record<string, string>;
+  /**
+   * memberId -> who the run they started will be charged to.
+   *
+   * Stored rather than held on screen so a reload mid-run cannot quietly turn
+   * a shared run into a solo one. Absent means "just them".
+   */
+  runningWith: Record<string, string[]>;
   entries: LogEntry[];
   createdAt: string;
 }

@@ -171,12 +171,39 @@ export interface Repository {
   removeTracker(trackerId: string): Promise<void>;
   /** Rewrites the whole room's order from a list of ids, first to last. */
   reorderTrackers(roomId: string, orderedIds: string[]): Promise<Tracker[]>;
-  /** No-op if this person's clock is already running. */
-  startClock(trackerId: string, memberId: string): Promise<Tracker>;
+  /** No-op if this person's clock is already running. `chargedTo` defaults to
+   *  just them, and is remembered until the run is stopped. */
+  startClock(trackerId: string, memberId: string, chargedTo?: string[]): Promise<Tracker>;
   /** Closes the open run into an entry. No-op if nothing is running. */
   stopClock(trackerId: string, memberId: string): Promise<Tracker>;
   /** A typed amount, in the tracker's own unit. */
-  addLogEntry(trackerId: string, memberId: string, quantity: number): Promise<Tracker>;
+  /** `occurredAt` is the day it counts on; it defaults to now. */
+  addLogEntry(
+    trackerId: string,
+    participantIds: string[],
+    quantity: number,
+    occurredAt?: string,
+  ): Promise<Tracker>;
+  /** A run you forgot to clock. Hours come from the span, never from a figure. */
+  addClockEntry(
+    trackerId: string,
+    participantIds: string[],
+    startedAt: string,
+    endedAt: string,
+  ): Promise<Tracker>;
+  /** Change what an entry recorded, when it ran, or who it is charged to. */
+  updateLogEntry(
+    trackerId: string,
+    entryId: string,
+    patch: {
+      quantity?: number;
+      participantIds?: string[];
+      startedAt?: string;
+      endedAt?: string;
+      /** For an entry with no span, the day it counts on. */
+      createdAt?: string;
+    },
+  ): Promise<Tracker>;
   removeLogEntry(trackerId: string, entryId: string): Promise<Tracker>;
 
   /* -- settling up ------------------------------------------------------- */

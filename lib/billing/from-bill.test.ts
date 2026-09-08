@@ -8,7 +8,7 @@ import {
 } from "@/lib/billing/from-bill";
 import { daysBetween, memberDaysFor, totalPersonDays } from "@/lib/billing/occupancy";
 import { formatCentavos, pesosToMillicents } from "@/lib/billing/money";
-import type { Bill, Member, Tracker } from "@/lib/data/types";
+import type { Bill, LogEntry, Member, Tracker } from "@/lib/data/types";
 
 const members: Member[] = [
   { id: "ANA", name: "Ana" },
@@ -180,7 +180,7 @@ function clockRun(memberId: string, fromDay: number, fromHour: number, toDay: nu
   const endedAt = inst(toDay, toHour);
   return {
     id: `run-${memberId}-${fromDay}-${fromHour}`,
-    memberId,
+    participantIds: [memberId],
     quantity: (Date.parse(endedAt) - Date.parse(startedAt)) / 3_600_000,
     startedAt,
     endedAt,
@@ -196,7 +196,7 @@ const aircon = (trackerId: string | null) => ({
   trackerId,
 });
 
-const airconTracker = (entries: ReturnType<typeof clockRun>[]): Tracker => ({
+const airconTracker = (entries: LogEntry[]): Tracker => ({
   id: "T-AC",
   roomId: "R1",
   name: "Air conditioner",
@@ -204,6 +204,7 @@ const airconTracker = (entries: ReturnType<typeof clockRun>[]): Tracker => ({
   builtIn: false,
   sortOrder: 0,
   runningSince: {},
+  runningWith: {},
   entries,
   createdAt: "2026-08-01T00:00:00.000Z",
 });
@@ -376,5 +377,45 @@ describe("occupancy counted from the clock", () => {
   it("is zero for a room whose clock has never run", () => {
     const days = resolvedMemberDays(bill({ memberHours: {} }), members, [clock([])]);
     expect(days.every((d) => d.days === 0)).toBe(true);
+  });
+});
+
+describe("a log entry shared between people", () => {
+  it("charges each of them their share, and the bill still reconciles", () => {
+    const b = bill({ rateMillicents: RATE_10_PESOS, appliances: [aircon("T-AC")] });
+    const shared = {
+      id: "shared-1",
+      participantIds: ["ANA", "BEN"],
+      quantity: 4,
+      startedAt: null,
+      endedAt: null,
+      createdAt: inst(5, 10),
+    };
+    const { result } = splitBill(b, members, [airconTracker([shared])]);
+
+    // 4 hours between two people is 2 each: 2 x 1 kWh x P10 = P20.
+    expect(result!.rows.find((r) => r.memberId === "ANA")!.meteredCentavos).toBe(2_000);
+    expect(result!.rows.find((r) => r.memberId === "BEN")!.meteredCentavos).toBe(2_000);
+    expect(result!.rows.find((r) => r.memberId === "CY")!.meteredCentavos).toBe(0);
+    expect(result!.rows.reduce((acc, r) => acc + r.totalCentavos, 0)).toBe(b.totalCentavos);
+  });
+
+  it("costs the same in total however many names are on it", () => {
+    const b = bill({ rateMillicents: RATE_10_PESOS, appliances: [aircon("T-AC")] });
+    const entry = (participantIds: string[]) => ({
+      id: "e",
+      participantIds,
+      quantity: 6,
+      startedAt: null,
+      endedAt: null,
+      createdAt: inst(5, 10),
+    });
+    const metered = (ids: string[]) =>
+      splitBill(b, members, [airconTracker([entry(ids)])]).result!.rows.reduce(
+        (acc, r) => acc + r.meteredCentavos,
+        0,
+      );
+    // 6 hours is 6 hours whether one person or three are charged for it.
+    expect(metered(["ANA"])).toBe(metered(["ANA", "BEN", "CY"]));
   });
 });

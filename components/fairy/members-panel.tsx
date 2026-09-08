@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Check, Pencil, Plus, Trash2, UserRound, Users, X } from "lucide-react";
+import { useState } from "react";
+import { Check, Copy, Pencil, Plus, Trash2, UserRound, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,6 +26,7 @@ import { SparkleBurst, useSparkle } from "@/components/fairy/sparkle-burst";
 import { repo, type Member, type MemberFootprint } from "@/lib/data";
 import { useRepoAction, useRepoQuery } from "@/lib/data/hooks";
 import { parseField, personNameSchema } from "@/lib/forms/schemas";
+import { cn } from "@/lib/utils";
 
 /**
  * The people in a room. Any number of them - the list is mapped, never
@@ -102,7 +103,7 @@ function MembersBody({ roomId, members }: { roomId: string; members: Member[] | 
           ))}
         </ul>
       )}
-      <AddMemberForm roomId={roomId} />
+      <InviteButton roomId={roomId} />
     </>
   );
 }
@@ -268,54 +269,154 @@ function FootprintSummary({
   );
 }
 
-function AddMemberForm({ roomId }: { roomId: string }) {
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const action = useRepoAction();
+/**
+ * Getting somebody else into the room.
+ *
+ * A code and a link, not a name field: you are inviting a person, not filing
+ * one. Both are honest about what they can reach — with no server behind this
+ * yet, neither can get to a housemate's phone (§9).
+ */
+function InviteButton({ roomId }: { roomId: string }) {
+  const [open, setOpen] = useState(false);
+  const room = useRepoQuery(() => repo.getRoom(roomId), [roomId]);
+  const code = room.data?.joinCode ?? "";
   const { burst, sparkle } = useSparkle();
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  async function add() {
-    const parsed = parseField(personNameSchema, name);
-    if (!parsed.ok) {
-      setError(parsed.message);
-      return;
-    }
-    const added = await action.run(() => repo.addMember(roomId, parsed.value));
-    if (!added) return;
-    sparkle();
-    setName("");
-    // Adding seven people should be seven names and seven Enters.
-    inputRef.current?.focus();
-  }
 
   return (
-    <div className="grid gap-1.5">
-      <div className="relative flex items-center gap-2">
+    <>
+      <div className="relative">
         <SparkleBurst burst={burst} />
-        <Input
-          ref={inputRef}
-          value={name}
-          placeholder="Add someone — e.g. Jem"
-          aria-label="Name of the person to add"
-          onChange={(e) => {
-            setName(e.target.value);
-            setError(null);
+        <Button
+          size="lg"
+          variant="secondary"
+          onClick={() => {
+            sparkle();
+            setOpen(true);
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void add();
-          }}
-          className="h-9"
-          aria-invalid={Boolean(error)}
-        />
-        <Button size="lg" variant="secondary" onClick={() => void add()} disabled={action.pending}>
+        >
           <Plus className="size-4" aria-hidden />
           Add
         </Button>
       </div>
-      {(error ?? action.error) && (
-        <p className="text-[11.5px] font-semibold text-fairy-danger">{error ?? action.error}</p>
-      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[21px] text-fairy-ink">Invite someone</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-2">
+            <CopyRow
+              label="Join code"
+              value={code}
+              copyLabel="Copy code"
+              mono
+            />
+            <CopyRow
+              label="Invite message"
+              value={inviteMessage(room.data?.name ?? "", code)}
+              copyLabel="Copy message"
+              multiline
+            />
+          </div>
+
+          <div className="border-l-[2.5px] border-fairy-ember bg-fairy-ember-tint px-3 py-2.5">
+            <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-ink-2">
+              <span className="font-bold text-fairy-ember">
+                Neither reaches another device yet.
+              </span>{" "}
+              There is no server behind this, so a code or link can only find
+              rooms saved in this browser. Sync is what makes it work on your
+              housemate&rsquo;s phone.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+/** The room's join URL. Empty until the room has loaded. */
+function inviteLink(code: string): string {
+  if (!code) return "";
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  return `${origin}/?join=${code}`;
+}
+
+/**
+ * The whole thing somebody actually sends, not just the URL.
+ *
+ * What is shown IS what is copied — a "Copy link" button that quietly put four
+ * lines on the clipboard would be a small lie. The caveat about this not
+ * reaching another device stays out of it: that is a note to the person
+ * sending, and it is already on screen beside this.
+ */
+function inviteMessage(roomName: string, code: string): string {
+  if (!code) return "";
+  const name = roomName.trim() || "our room";
+  return [
+    `Join ${name} on FairySplit — we split the bills by the hours each of us actually stayed.`,
+    "",
+    `Room code: ${code}`,
+    inviteLink(code),
+  ].join("\n");
+}
+
+/** A value you are meant to take away, with one button that takes it. */
+function CopyRow({
+  label,
+  value,
+  copyLabel,
+  mono,
+  multiline,
+}: {
+  label: string;
+  value: string;
+  copyLabel: string;
+  mono?: boolean;
+  /** Show the whole thing, wrapped, rather than one truncated line. */
+  multiline?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <div className="grid gap-1.5 border border-fairy-hair bg-fairy-screen px-3 py-2.5">
+      <span className="text-[10.5px] font-bold tracking-[0.1em] text-fairy-grey-strong uppercase">
+        {label}
+      </span>
+      <div className={cn("gap-2", multiline ? "grid" : "flex items-center")}>
+        <span
+          className={cn(
+            "min-w-0 flex-1 text-[12.5px] text-fairy-ink",
+            multiline
+              ? "leading-[1.5] font-medium whitespace-pre-wrap"
+              : "truncate font-semibold",
+            mono && "font-extrabold tracking-[0.18em] tabular-nums",
+          )}
+        >
+          {value || "—"}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={!value}
+          onClick={() => {
+            void navigator.clipboard?.writeText(value).then(() => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1600);
+            });
+          }}
+          aria-label={copyLabel}
+          className={cn("shrink-0", multiline && "justify-self-start")}
+        >
+          {copied ? (
+            <Check className="size-3.5 text-fairy-moss" aria-hidden />
+          ) : (
+            <Copy className="size-3.5" aria-hidden />
+          )}
+          {copied ? "Copied" : copyLabel}
+        </Button>
+      </div>
     </div>
   );
 }

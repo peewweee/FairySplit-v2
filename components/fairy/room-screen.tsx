@@ -37,10 +37,16 @@ export function RoomScreen({ roomId }: { roomId: string }) {
         action={
           <>
             <JoinCode code={room.data.joinCode} copyable />
-            <Button variant="outline" size="lg" asChild>
-              <Link href={`/rooms/${roomId}/settings`}>
+            {/* Quiet on purpose: settings is somewhere you go once, not a
+                thing you do, so it should not compete with the join code. */}
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className="text-fairy-grey-strong hover:text-fairy-ink"
+            >
+              <Link href={`/rooms/${roomId}/settings`} aria-label="Room settings">
                 <Settings2 className="size-4" aria-hidden />
-                Settings
               </Link>
             </Button>
           </>

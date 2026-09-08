@@ -155,6 +155,26 @@ function normaliseBills(bills: Record<string, Bill>): Record<string, Bill> {
  * oldest — so nothing appears to move on the read that adds it. Deterministic,
  * so repeating it on every read produces the same answer.
  */
+/**
+ * Log entries used to name a single owner.
+ *
+ * They carry a participant set now, so an entry can be charged to several
+ * people. An old entry becomes a set of one, which costs exactly what it did.
+ */
+function normaliseLogEntries(db: FairyDb): void {
+  for (const tracker of Object.values(db.trackers)) {
+    tracker.runningWith ??= {};
+    for (const entry of tracker.entries ?? []) {
+      const legacy = (entry as unknown as { memberId?: string }).memberId;
+      if (!entry.participantIds && legacy) {
+        entry.participantIds = [legacy];
+        delete (entry as unknown as { memberId?: unknown }).memberId;
+      }
+      entry.participantIds ??= [];
+    }
+  }
+}
+
 function normaliseTrackerOrder(db: FairyDb): void {
   const byRoom = new Map<string, Tracker[]>();
   for (const tracker of Object.values(db.trackers)) {
@@ -190,6 +210,7 @@ function readDb(): FairyDb {
         for (const template of room.applianceDefaults ?? []) template.trackerId ??= null;
       }
       normaliseTrackerOrder(db);
+      normaliseLogEntries(db);
       return db;
     }
     const legacy = window.localStorage.getItem(LEGACY_KEY_V1);
@@ -273,6 +294,17 @@ function nextSortOrder(db: FairyDb, roomId: string): number {
   return used.length === 0 ? 0 : Math.max(...used) + 1;
 }
 
+/** Hours between two instants, refusing a run that ends before it starts. */
+function spanHours(startedAt: string, endedAt: string): number {
+  const from = Date.parse(startedAt);
+  const to = Date.parse(endedAt);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) {
+    throw new RepositoryError("That date and time don't look right.");
+  }
+  if (to <= from) throw new RepositoryError("The end has to come after the start.");
+  return (to - from) / 3_600_000;
+}
+
 function requireTracker(db: FairyDb, id: string): Tracker {
   const tracker = db.trackers[id];
   if (!tracker) throw new RepositoryError("That log no longer exists.");
@@ -296,6 +328,7 @@ function ensureOccupancyTracker(db: FairyDb, roomId: string): Tracker {
     // A room's first log, so it leads until somebody drags it elsewhere.
     sortOrder: nextSortOrder(db, roomId),
     runningSince: {},
+    runningWith: {},
     entries: [],
     createdAt: new Date().toISOString(),
   };
@@ -478,7 +511,11 @@ export class LocalRepository implements Repository {
       for (const tracker of Object.values(db.trackers)) {
         if (tracker.roomId !== roomId) continue;
         delete tracker.runningSince[memberId];
-        tracker.entries = tracker.entries.filter((e) => e.memberId !== memberId);
+        // Drop them from every entry; one left with nobody on it is charged
+        // to no one and would only sit there confusing the totals.
+        tracker.entries = tracker.entries
+          .map((e) => ({ ...e, participantIds: e.participantIds.filter((id) => id !== memberId) }))
+          .filter((e) => e.participantIds.length > 0);
       }
     });
   }
@@ -835,6 +872,7 @@ export class LocalRepository implements Repository {
         builtIn: false,
         sortOrder: nextSortOrder(db, roomId),
         runningSince: {},
+        runningWith: {},
         entries: [],
         createdAt: new Date().toISOString(),
       };
@@ -877,7 +915,7 @@ export class LocalRepository implements Repository {
     });
   }
 
-  async startClock(trackerId: string, memberId: string): Promise<Tracker> {
+  async startClock(trackerId: string, memberId: string, chargedTo?: string[]): Promise<Tracker> {
     return mutate((db) => {
       const tracker = requireTracker(db, trackerId);
       if (tracker.mode !== "clock") {
@@ -885,7 +923,10 @@ export class LocalRepository implements Repository {
       }
       // Already running: leave the original start alone. Restarting it here
       // would silently discard however long they have been clocked in.
-      tracker.runningSince[memberId] ??= new Date().toISOString();
+      if (tracker.runningSince[memberId]) return clone(tracker);
+      tracker.runningSince[memberId] = new Date().toISOString();
+      tracker.runningWith ??= {};
+      tracker.runningWith[memberId] = chargedTo?.length ? [...chargedTo] : [memberId];
       return clone(tracker);
     });
   }
@@ -897,12 +938,15 @@ export class LocalRepository implements Repository {
       if (!startedAt) return clone(tracker);
       const endedAt = new Date().toISOString();
       const hours = Math.max(0, (Date.parse(endedAt) - Date.parse(startedAt)) / 3_600_000);
+      const chargedTo = tracker.runningWith?.[memberId];
       delete tracker.runningSince[memberId];
+      delete tracker.runningWith?.[memberId];
       // A run of a few milliseconds — a mis-tap — is not worth a row.
       if (hours > 0) {
         tracker.entries.push({
           id: newId(),
-          memberId,
+          // Whoever was ticked when the run began, not whoever is ticked now.
+          participantIds: chargedTo?.length ? [...chargedTo] : [memberId],
           quantity: hours,
           startedAt,
           endedAt,
@@ -913,18 +957,88 @@ export class LocalRepository implements Repository {
     });
   }
 
-  async addLogEntry(trackerId: string, memberId: string, quantity: number): Promise<Tracker> {
+  async addLogEntry(
+    trackerId: string,
+    participantIds: string[],
+    quantity: number,
+    occurredAt?: string,
+  ): Promise<Tracker> {
     return mutate((db) => {
       const tracker = requireTracker(db, trackerId);
-      const now = new Date().toISOString();
+      if (participantIds.length === 0) {
+        throw new RepositoryError("Tick at least one person this is charged to.");
+      }
       tracker.entries.push({
         id: newId(),
-        memberId,
+        participantIds: [...participantIds],
         quantity,
         startedAt: null,
         endedAt: null,
-        createdAt: now,
+        // For an entry with no span this IS the day it counts on, which is why
+        // it can be set rather than always being "now".
+        createdAt: occurredAt ?? new Date().toISOString(),
       });
+      return clone(tracker);
+    });
+  }
+
+  async addClockEntry(
+    trackerId: string,
+    participantIds: string[],
+    startedAt: string,
+    endedAt: string,
+  ): Promise<Tracker> {
+    return mutate((db) => {
+      const tracker = requireTracker(db, trackerId);
+      if (participantIds.length === 0) {
+        throw new RepositoryError("Tick at least one person this is charged to.");
+      }
+      const hours = spanHours(startedAt, endedAt);
+      tracker.entries.push({
+        id: newId(),
+        participantIds: [...participantIds],
+        quantity: hours,
+        startedAt,
+        endedAt,
+        createdAt: new Date().toISOString(),
+      });
+      return clone(tracker);
+    });
+  }
+
+  async updateLogEntry(
+    trackerId: string,
+    entryId: string,
+    patch: {
+      quantity?: number;
+      participantIds?: string[];
+      startedAt?: string;
+      endedAt?: string;
+      createdAt?: string;
+    },
+  ): Promise<Tracker> {
+    return mutate((db) => {
+      const tracker = requireTracker(db, trackerId);
+      const entry = tracker.entries.find((e) => e.id === entryId);
+      if (!entry) throw new RepositoryError("That entry is no longer in this log.");
+
+      if (patch.createdAt !== undefined) entry.createdAt = patch.createdAt;
+      if (patch.startedAt !== undefined) entry.startedAt = patch.startedAt;
+      if (patch.endedAt !== undefined) entry.endedAt = patch.endedAt;
+      if (entry.startedAt && entry.endedAt) {
+        // A span entry's hours ARE its span. Deriving them here rather than
+        // trusting a figure keeps the two from ever disagreeing.
+        entry.quantity = spanHours(entry.startedAt, entry.endedAt);
+      } else if (patch.quantity !== undefined) {
+        entry.quantity = patch.quantity;
+      }
+
+      if (patch.participantIds !== undefined) {
+        if (patch.participantIds.length === 0) {
+          throw new RepositoryError("Tick at least one person this is charged to.");
+        }
+        entry.participantIds = [...patch.participantIds];
+      }
       return clone(tracker);
     });
   }

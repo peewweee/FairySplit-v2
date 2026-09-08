@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Check, ChevronDown, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ParticipantPicker } from "@/components/fairy/participant-picker";
 import { Input } from "@/components/ui/input";
 import { ErrorNote, LoadingRows } from "@/components/fairy/shell-bits";
 import { findMe } from "@/components/fairy/bills-panel";
@@ -343,7 +344,7 @@ function TrackerCard({
   const meta = TRACKER_MODE_META[tracker.mode];
   const openedAt = runningSince(tracker, me.id);
   const now = useNow(Boolean(openedAt));
-  const mine = tracker.entries.filter((e) => e.memberId === me.id);
+  const mine = tracker.entries.filter((e) => e.participantIds.includes(me.id));
 
   return (
     <article
@@ -392,10 +393,10 @@ function TrackerCard({
       {meta.live ? (
         <ClockBody tracker={tracker} me={me} members={members} openedAt={openedAt} now={now} />
       ) : (
-        <ManualBody tracker={tracker} me={me} now={now} />
+        <ManualBody tracker={tracker} me={me} members={members} now={now} />
       )}
 
-      <EntryList tracker={tracker} entries={mine} now={now} />
+      <EntryList tracker={tracker} entries={mine} members={members} me={me} />
     </article>
   );
 }
@@ -420,6 +421,13 @@ function ClockBody({
   // entries behind it are never touched, only the window that is added up.
   const today = todayFor(tracker, me.id, now);
   const running = Boolean(openedAt);
+
+  // Only an added clock can be shared: you cannot be in the unit on somebody
+  // else's behalf. A run in flight already knows who it is for.
+  const sharable = !tracker.builtIn;
+  const [people, setPeople] = useState<string[]>(
+    () => tracker.runningWith?.[me.id] ?? [me.id],
+  );
 
   // Everyone else the store knows is clocked in. Only meaningful once sync
   // lands, but it costs nothing and it is true of the data we hold today.
@@ -452,9 +460,21 @@ function ClockBody({
         builtIn={tracker.builtIn}
         running={running}
         pending={action.pending}
-        onIn={() => void action.run(() => repo.startClock(tracker.id, me.id))}
+        onIn={() => void action.run(() => repo.startClock(tracker.id, me.id, people))}
         onOut={() => void action.run(() => repo.stopClock(tracker.id, me.id))}
       />
+
+      {sharable && (
+        <div className="mt-3 border-t border-fairy-hair pt-3">
+          <ParticipantPicker
+            members={members}
+            selected={people}
+            onChange={setPeople}
+            idPrefix={`clock-${tracker.id}`}
+            label="Charged to"
+          />
+        </div>
+      )}
 
       {othersIn.length > 0 && (
         <p className="mt-2 text-[10.5px] font-medium text-fairy-grey-strong">
@@ -576,9 +596,22 @@ function timeOfDay(iso: string | null): string {
 
 /* -- manual modes --------------------------------------------------------- */
 
-function ManualBody({ tracker, me, now }: { tracker: Tracker; me: Member; now: number }) {
+function ManualBody({
+  tracker,
+  me,
+  members,
+  now,
+}: {
+  tracker: Tracker;
+  me: Member;
+  members: Member[];
+  now: number;
+}) {
   const meta = TRACKER_MODE_META[tracker.mode];
   const [draft, setDraft] = useState("");
+  // Yourself by default: the common case is logging your own use, and an empty
+  // set would make "Log it" fail on the first press.
+  const [participants, setParticipants] = useState<string[]>([me.id]);
   const [error, setError] = useState<string | null>(null);
   const action = useRepoAction();
   // Same daily window as the clock cards, so one card never means "today" while
@@ -591,9 +624,18 @@ function ManualBody({ tracker, me, now }: { tracker: Tracker; me: Member; now: n
       setError(parsed.message);
       return;
     }
+    if (participants.length === 0) {
+      setError("Tick at least one person this is charged to.");
+      return;
+    }
     setError(null);
-    const done = await action.run(() => repo.addLogEntry(tracker.id, me.id, parsed.value));
-    if (done) setDraft("");
+    const done = await action.run(() =>
+      repo.addLogEntry(tracker.id, participants, parsed.value),
+    );
+    if (done) {
+      setDraft("");
+      setParticipants([me.id]);
+    }
   }
 
   return (
@@ -634,6 +676,21 @@ function ManualBody({ tracker, me, now }: { tracker: Tracker; me: Member; now: n
             Log
           </Button>
         </div>
+      </div>
+
+      {/* Who the entry is charged to, before it is made. A shared run divides
+          equally between whoever is ticked. */}
+      <div className="mt-3 border-t border-fairy-hair pt-3">
+        <ParticipantPicker
+          members={members}
+          selected={participants}
+          onChange={(update) => {
+            setParticipants(update);
+            setError(null);
+          }}
+          idPrefix={`log-${tracker.id}`}
+          label="Charged to"
+        />
       </div>
 
       <ErrorNote>{error ?? action.error}</ErrorNote>
@@ -774,63 +831,80 @@ function RemoveTracker({ tracker }: { tracker: Tracker }) {
 function EntryList({
   tracker,
   entries,
-  now,
+  members,
+  me,
 }: {
   tracker: Tracker;
   entries: LogEntry[];
-  now: number;
+  members: Member[];
+  me: Member;
 }) {
   const [open, setOpen] = useState(false);
-  const meta = TRACKER_MODE_META[tracker.mode];
+  const [adding, setAdding] = useState(false);
   const action = useRepoAction();
-  const todayKey = dayKeyOf(now);
+  // A log only records what somebody remembered, so an entry can always be
+  // typed in after the fact — as a span for a clock, as an amount otherwise.
+  const spanned = TRACKER_MODE_META[tracker.mode].live;
 
-  if (entries.length === 0) return null;
-
-  // Newest first — the one you just logged is the one you might undo.
+  // Newest first — the one you just logged is the one you might fix.
   const ordered = [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   return (
     <div className="mt-3 border-t border-fairy-hair pt-2.5">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-[11px] font-bold text-fairy-grey-strong hover:text-fairy-ink"
-      >
-        <ChevronDown
-          className={cn("size-3.5 transition-transform", open && "rotate-180")}
-          aria-hidden
-        />
-        {entries.length} {entries.length === 1 ? "entry" : "entries"}
-      </button>
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1 text-[11px] font-bold text-fairy-grey-strong hover:text-fairy-ink"
+        >
+          <ChevronDown
+            className={cn("size-3.5 transition-transform", open && "rotate-180")}
+            aria-hidden
+          />
+          {entries.length} {entries.length === 1 ? "entry" : "entries"}
+        </button>
+
+        {!adding && (
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(true);
+              setAdding(true);
+            }}
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-fairy-rose hover:text-fairy-tint-ink"
+          >
+            <Plus className="size-3.5" aria-hidden />
+            Add entry
+          </button>
+        )}
+      </div>
+
+      {adding && (
+        <div className="mt-2">
+          {spanned ? (
+            <NewRunForm
+              tracker={tracker}
+              me={me}
+              members={members}
+              onDone={() => setAdding(false)}
+            />
+          ) : (
+            <NewManualForm
+              tracker={tracker}
+              me={me}
+              members={members}
+              onDone={() => setAdding(false)}
+            />
+          )}
+        </div>
+      )}
 
       {open && (
-        <ul className="mt-2 grid gap-1">
+        <ul className="mt-2 grid gap-1.5">
           {ordered.map((entry) => (
-            <li
-              key={entry.id}
-              className="flex items-center justify-between gap-3 text-[11.5px] font-medium text-fairy-grey-strong"
-            >
-              <span className="min-w-0 truncate">
-                <span data-numeric className="font-bold text-fairy-ink">
-                  {describeQuantity(entry.quantity, tracker.mode, meta.unit, meta.unitPlural)}
-                </span>
-                {/* The counter above only shows today, so anything older says
-                    which day it was — otherwise the history looks like it
-                    disagrees with the number. */}
-                {stampOf(entry, todayKey) && ` · ${stampOf(entry, todayKey)}`}
-                {entry.startedAt && ` · ${timeOfDay(entry.startedAt)}–${timeOfDay(entry.endedAt)}`}
-              </span>
-              <button
-                type="button"
-                aria-label="Remove this entry"
-                disabled={action.pending}
-                onClick={() => void action.run(() => repo.removeLogEntry(tracker.id, entry.id))}
-                className="shrink-0 text-fairy-grey-strong hover:text-fairy-danger disabled:opacity-45"
-              >
-                <X className="size-3.5" aria-hidden />
-              </button>
+            <li key={entry.id}>
+              <EntryRow tracker={tracker} entry={entry} members={members} />
             </li>
           ))}
         </ul>
@@ -840,11 +914,580 @@ function EntryList({
   );
 }
 
-/** "Aug 21" for an entry from another day; nothing at all for today's. */
-function stampOf(entry: LogEntry, todayKey: string): string {
+/** A run typed in after the fact: a date, a start and an end. */
+function NewRunForm({
+  tracker,
+  me,
+  members,
+  onDone,
+}: {
+  tracker: Tracker;
+  me: Member;
+  members: Member[];
+  onDone: () => void;
+}) {
+  // Only the occupancy clock is yours alone; an added one can be shared.
+  const sharable = !tracker.builtIn;
+  const [day, setDay] = useState(() => toDateInput(new Date().toISOString()));
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [people, setPeople] = useState<string[]>([me.id]);
+  const [error, setError] = useState<string | null>(null);
+  const action = useRepoAction();
+
+  async function submit() {
+    const span = toSpan(day, from, to);
+    if (!span) {
+      setError("Fill in the date and both times.");
+      return;
+    }
+    if (sharable && people.length === 0) {
+      setError("Tick at least one person this is charged to.");
+      return;
+    }
+    setError(null);
+    const done = await action.run(() =>
+      repo.addClockEntry(
+        tracker.id,
+        sharable ? people : [me.id],
+        span.startedAt,
+        span.endedAt,
+      ),
+    );
+    if (done) onDone();
+  }
+
+  return (
+    <div className="grid gap-2 border border-fairy-pink bg-card px-2.5 py-2.5">
+      <SpanFields
+        idPrefix={`new-run-${tracker.id}`}
+        day={day}
+        from={from}
+        to={to}
+        setDay={(v) => {
+          setDay(v);
+          setError(null);
+        }}
+        setFrom={(v) => {
+          setFrom(v);
+          setError(null);
+        }}
+        setTo={(v) => {
+          setTo(v);
+          setError(null);
+        }}
+      />
+
+      {sharable && (
+        <ParticipantPicker
+          members={members}
+          selected={people}
+          onChange={(update) => {
+            setPeople(update);
+            setError(null);
+          }}
+          idPrefix={`new-run-${tracker.id}`}
+          label="Charged to"
+        />
+      )}
+
+      <ErrorNote>{error ?? action.error}</ErrorNote>
+
+      <div className="flex justify-end gap-1.5">
+        <Button size="sm" variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button size="sm" disabled={action.pending} onClick={() => void submit()}>
+          <Check className="size-3.5" aria-hidden />
+          Add entry
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** An amount typed in for a day that is not today. */
+function NewManualForm({
+  tracker,
+  me,
+  members,
+  onDone,
+}: {
+  tracker: Tracker;
+  me: Member;
+  members: Member[];
+  onDone: () => void;
+}) {
+  const meta = TRACKER_MODE_META[tracker.mode];
+  const [day, setDay] = useState(() => toDateInput(new Date().toISOString()));
+  const [amount, setAmount] = useState("");
+  const [people, setPeople] = useState<string[]>([me.id]);
+  const [error, setError] = useState<string | null>(null);
+  const action = useRepoAction();
+
+  async function submit() {
+    const parsed = parseField(usageQuantitySchema, amount);
+    if (!parsed.ok) {
+      setError(parsed.message);
+      return;
+    }
+    const occurredAt = toDayStart(day);
+    if (!occurredAt) {
+      setError("Pick a date.");
+      return;
+    }
+    if (people.length === 0) {
+      setError("Tick at least one person this is charged to.");
+      return;
+    }
+    setError(null);
+    const done = await action.run(() =>
+      repo.addLogEntry(tracker.id, people, parsed.value, occurredAt),
+    );
+    if (done) onDone();
+  }
+
+  return (
+    <div className="grid gap-2 border border-fairy-pink bg-card px-2.5 py-2.5">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="grid gap-1">
+          <span className="text-[10.5px] font-bold text-fairy-grey-strong">Date</span>
+          <Input
+            type="date"
+            value={day}
+            autoFocus
+            className="h-8 w-[9.5rem] text-[12px]"
+            onChange={(e) => {
+              setDay(e.target.value);
+              setError(null);
+            }}
+          />
+        </label>
+        <label className="grid gap-1">
+          <span className="text-[10.5px] font-bold text-fairy-grey-strong">
+            {meta.unitPlural}
+          </span>
+          <Input
+            value={amount}
+            inputMode="decimal"
+            data-numeric
+            placeholder={tracker.mode === "per_cycle" ? "e.g. 2" : "e.g. 1.5"}
+            className="h-8 w-20 text-right tabular-nums"
+            onChange={(e) => {
+              setAmount(e.target.value);
+              setError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void submit();
+            }}
+          />
+        </label>
+      </div>
+
+      <ParticipantPicker
+        members={members}
+        selected={people}
+        onChange={(update) => {
+          setPeople(update);
+          setError(null);
+        }}
+        idPrefix={`new-manual-${tracker.id}`}
+        label="Charged to"
+      />
+
+      <ErrorNote>{error ?? action.error}</ErrorNote>
+
+      <div className="flex justify-end gap-1.5">
+        <Button size="sm" variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button size="sm" disabled={action.pending} onClick={() => void submit()}>
+          <Check className="size-3.5" aria-hidden />
+          Add entry
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One recorded entry: when it ran, how much it came to, and who it is charged
+ * to — all of it changeable, because a log only records what somebody
+ * remembered to press.
+ *
+ * A run with a span is edited AS a span: a date and two times, with the hours
+ * derived. The occupancy clock has no "charged to" at all — you can only be in
+ * the unit yourself.
+ */
+function EntryRow({
+  tracker,
+  entry,
+  members,
+}: {
+  tracker: Tracker;
+  entry: LogEntry;
+  members: Member[];
+}) {
+  const meta = TRACKER_MODE_META[tracker.mode];
+  const spanned = Boolean(entry.startedAt && entry.endedAt);
+  const sharable = !tracker.builtIn;
+
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [draft, setDraft] = useState(() => String(round3(entry.quantity)));
+  const [day, setDay] = useState(() => toDateInput(entry.startedAt ?? entry.createdAt));
+  const [from, setFrom] = useState(() => toTimeInput(entry.startedAt));
+  const [to, setTo] = useState(() => toTimeInput(entry.endedAt));
+  const [people, setPeople] = useState<string[]>(entry.participantIds);
+  const [error, setError] = useState<string | null>(null);
+  const action = useRepoAction();
+
+  function reset() {
+    setDraft(String(round3(entry.quantity)));
+    setDay(toDateInput(entry.startedAt ?? entry.createdAt));
+    setFrom(toTimeInput(entry.startedAt));
+    setTo(toTimeInput(entry.endedAt));
+    setPeople(entry.participantIds);
+    setError(null);
+  }
+
+  async function save() {
+    if (sharable && people.length === 0) {
+      setError("Tick at least one person this is charged to.");
+      return;
+    }
+
+    if (spanned) {
+      const span = toSpan(day, from, to);
+      if (!span) {
+        setError("Fill in the date and both times.");
+        return;
+      }
+      setError(null);
+      const done = await action.run(() =>
+        repo.updateLogEntry(tracker.id, entry.id, {
+          startedAt: span.startedAt,
+          endedAt: span.endedAt,
+          ...(sharable ? { participantIds: people } : {}),
+        }),
+      );
+      if (done) setEditing(false);
+      return;
+    }
+
+    const parsed = parseField(usageQuantitySchema, draft);
+    if (!parsed.ok) {
+      setError(parsed.message);
+      return;
+    }
+    setError(null);
+    const occurredAt = toDayStart(day);
+    if (!occurredAt) {
+      setError("Pick a date.");
+      return;
+    }
+    setError(null);
+    const done = await action.run(() =>
+      repo.updateLogEntry(tracker.id, entry.id, {
+        quantity: parsed.value,
+        createdAt: occurredAt,
+        ...(sharable ? { participantIds: people } : {}),
+      }),
+    );
+    if (done) setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex items-start justify-between gap-3 border border-fairy-hair bg-fairy-screen px-2.5 py-2">
+        <div className="min-w-0 text-[11.5px] font-medium text-fairy-grey-strong">
+          <p>
+            <span data-numeric className="font-bold text-fairy-ink">
+              {describeQuantity(entry.quantity, tracker.mode, meta.unit, meta.unitPlural)}
+            </span>
+            {" · "}
+            {fullStamp(entry)}
+            {spanned && ` · ${timeOfDay(entry.startedAt)}–${timeOfDay(entry.endedAt)}`}
+          </p>
+          {sharable && (
+            <p className="mt-0.5 truncate">
+              Charged to {describePeople(members, entry.participantIds)}
+            </p>
+          )}
+        </div>
+
+        {/* Asking in place rather than in a modal: an entry is a small row in a
+            list, and a dialog per row would be heavier than what it guards.
+            Deleting one is not undoable — the hours simply stop counting. */}
+        {confirming ? (
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="text-[10.5px] font-bold text-fairy-grey-strong">Delete it?</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 bg-fairy-danger-tint px-2 text-[11px] text-fairy-danger hover:bg-fairy-danger-tint"
+              disabled={action.pending}
+              onClick={() => void action.run(() => repo.removeLogEntry(tracker.id, entry.id))}
+            >
+              Delete
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => setConfirming(false)}
+            >
+              Keep
+            </Button>
+          </div>
+        ) : (
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              aria-label="Edit this entry"
+              onClick={() => {
+                reset();
+                setEditing(true);
+              }}
+              className="flex size-6 items-center justify-center text-fairy-grey-strong hover:text-fairy-rose"
+            >
+              <Pencil className="size-3" aria-hidden />
+            </button>
+            <button
+              type="button"
+              aria-label="Remove this entry"
+              onClick={() => setConfirming(true)}
+              className="flex size-6 items-center justify-center text-fairy-grey-strong hover:text-fairy-danger"
+            >
+              <Trash2 className="size-3" aria-hidden />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-2 border border-fairy-pink bg-card px-2.5 py-2.5">
+      {spanned ? (
+        <SpanFields
+          idPrefix={`entry-${entry.id}`}
+          day={day}
+          from={from}
+          to={to}
+          setDay={(v) => {
+            setDay(v);
+            setError(null);
+          }}
+          setFrom={(v) => {
+            setFrom(v);
+            setError(null);
+          }}
+          setTo={(v) => {
+            setTo(v);
+            setError(null);
+          }}
+        />
+      ) : (
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="grid gap-1">
+            <span className="text-[10.5px] font-bold text-fairy-grey-strong">Date</span>
+            <Input
+              type="date"
+              value={day}
+              className="h-8 w-[9.5rem] text-[12px]"
+              onChange={(e) => {
+                setDay(e.target.value);
+                setError(null);
+              }}
+            />
+          </label>
+          <label className="grid gap-1">
+            <span className="text-[10.5px] font-bold text-fairy-grey-strong">
+              {meta.unitPlural}
+            </span>
+            <Input
+              aria-label={`How many ${meta.unitPlural}`}
+              value={draft}
+              autoFocus
+              inputMode="decimal"
+              data-numeric
+              className="h-8 w-20 text-right tabular-nums"
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void save();
+                if (e.key === "Escape") setEditing(false);
+              }}
+              aria-invalid={Boolean(error)}
+            />
+          </label>
+        </div>
+      )}
+
+      {sharable && (
+        <ParticipantPicker
+          members={members}
+          selected={people}
+          onChange={(update) => {
+            setPeople(update);
+            setError(null);
+          }}
+          idPrefix={`entry-${entry.id}`}
+          label="Charged to"
+        />
+      )}
+
+      <ErrorNote>{error ?? action.error}</ErrorNote>
+
+      <div className="flex justify-end gap-1.5">
+        <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+          Cancel
+        </Button>
+        <Button size="sm" disabled={action.pending} onClick={() => void save()}>
+          <Check className="size-3.5" aria-hidden />
+          Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** A date and two times — the shape a clock run is actually edited in. */
+function SpanFields({
+  idPrefix,
+  day,
+  from,
+  to,
+  setDay,
+  setFrom,
+  setTo,
+}: {
+  idPrefix: string;
+  day: string;
+  from: string;
+  to: string;
+  setDay: (v: string) => void;
+  setFrom: (v: string) => void;
+  setTo: (v: string) => void;
+}) {
+  return (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="grid gap-1">
+          <span className="text-[10.5px] font-bold text-fairy-grey-strong">Date</span>
+          <Input
+            id={`${idPrefix}-day`}
+            type="date"
+            value={day}
+            autoFocus
+            className="h-8 w-[9.5rem] text-[12px]"
+            onChange={(e) => setDay(e.target.value)}
+          />
+        </label>
+        <label className="grid gap-1">
+          <span className="text-[10.5px] font-bold text-fairy-grey-strong">From</span>
+          <Input
+            id={`${idPrefix}-from`}
+            type="time"
+            value={from}
+            className="h-8 w-[6.5rem] text-[12px]"
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </label>
+        <label className="grid gap-1">
+          <span className="text-[10.5px] font-bold text-fairy-grey-strong">To</span>
+          <Input
+            id={`${idPrefix}-to`}
+            type="time"
+            value={to}
+            className="h-8 w-[6.5rem] text-[12px]"
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+/** "2026-09-09" in LOCAL time, which is what a date input expects. */
+function toDateInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** "14:30", local. */
+function toTimeInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * A date and two times back into a pair of instants.
+ *
+ * An end at or before the start rolls to the next day rather than erroring:
+ * "in at 10pm, out at 8am" is the ordinary shape of a night at home, and
+ * refusing it would make the commonest correction the hardest one to type.
+ */
+function toSpan(
+  day: string,
+  from: string,
+  to: string,
+): { startedAt: string; endedAt: string; overnight: boolean } | null {
+  const [y, m, d] = day.split("-").map(Number);
+  const [fh, fm] = from.split(":").map(Number);
+  const [th, tm] = to.split(":").map(Number);
+  if (!y || !m || !d) return null;
+  if ([fh, fm, th, tm].some((n) => !Number.isFinite(n))) return null;
+
+  const start = new Date(y, m - 1, d, fh, fm, 0);
+  const end = new Date(y, m - 1, d, th, tm, 0);
+  const overnight = end.getTime() <= start.getTime();
+  if (overnight) end.setDate(end.getDate() + 1);
+  return {
+    startedAt: start.toISOString(),
+    endedAt: end.toISOString(),
+    overnight,
+  };
+}
+
+/**
+ * Local midnight of a chosen day.
+ *
+ * An entry with no span counts on the day it is stamped, so this is what moves
+ * one from one bill to another.
+ */
+function toDayStart(day: string): string | null {
+  const [y, m, d] = day.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d, 12, 0, 0).toISOString();
+}
+
+/** "Sep 9" — always shown, so an entry never floats without a date. */
+function fullStamp(entry: LogEntry): string {
   const at = Date.parse(entry.startedAt ?? entry.createdAt);
-  if (!Number.isFinite(at) || dayKeyOf(at) === todayKey) return "";
+  if (!Number.isFinite(at)) return "";
   return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** "Ana, Ben and Cy" — names, never ids. */
+function describePeople(members: Member[], ids: string[]): string {
+  const names = ids
+    .map((id) => members.find((m) => m.id === id)?.name)
+    .filter((n): n is string => Boolean(n));
+  if (names.length === 0) return "nobody";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
 /* -- adding one ----------------------------------------------------------- */

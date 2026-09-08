@@ -10,6 +10,7 @@ import {
   runningCount,
   nextMidnight,
   settledFor,
+  shareOf,
   todayFor,
   totalFor,
 } from "@/lib/tracking/elapsed";
@@ -21,7 +22,7 @@ const at = (hours: number) => T0 + hours * 3_600_000;
 function entry(memberId: string, quantity: number, id = `e-${memberId}-${quantity}`): LogEntry {
   return {
     id,
-    memberId,
+    participantIds: [memberId],
     quantity,
     startedAt: null,
     endedAt: null,
@@ -38,6 +39,7 @@ function tracker(over: Partial<Tracker> = {}): Tracker {
     builtIn: true,
     sortOrder: 0,
     runningSince: {},
+    runningWith: {},
     entries: [],
     createdAt: "2026-08-22T09:00:00.000Z",
     ...over,
@@ -108,9 +110,11 @@ describe("formatDuration", () => {
 });
 
 describe("formatQuantity", () => {
-  it("keeps cycles whole", () => {
+  it("keeps a whole cycle whole, but does not round a share to one", () => {
     expect(formatQuantity(4, "per_cycle")).toBe("4");
-    expect(formatQuantity(4.4, "per_cycle")).toBe("4");
+    // A 2-cycle entry split three ways. Rounding this to "1" would contradict
+    // the formula shown beside it on the bill.
+    expect(formatQuantity(2 / 3, "per_cycle")).toBe("0.67");
   });
 
   it("drops pointless decimals on hours and days", () => {
@@ -144,7 +148,7 @@ function clockEntry(memberId: string, fromH: number, toH: number, fromDay = 22, 
   const endedAt = iso(toH, 0, toDay);
   return {
     id: `c-${fromDay}-${fromH}`,
-    memberId,
+    participantIds: [memberId],
     quantity: (Date.parse(endedAt) - Date.parse(startedAt)) / 3_600_000,
     startedAt,
     endedAt,
@@ -233,5 +237,50 @@ describe("todayFor", () => {
       runningSince: { P1: iso(14) },
     });
     expect(todayFor(running, "P1", local(15, 30))).toBe(4.5);
+  });
+});
+
+describe("entries charged to several people", () => {
+  const shared = (ids: string[], quantity: number): LogEntry => ({
+    id: `s-${ids.join("+")}`,
+    participantIds: ids,
+    quantity,
+    startedAt: null,
+    endedAt: null,
+    createdAt: iso(10),
+  });
+
+  it("splits an entry equally between whoever it names", () => {
+    const t = tracker({ mode: "per_cycle", entries: [shared(["P1", "P2", "P3"], 6)] });
+    expect(shareOf(t.entries[0], "P1")).toBe(2);
+    expect(shareOf(t.entries[0], "P2")).toBe(2);
+    expect(shareOf(t.entries[0], "P3")).toBe(2);
+  });
+
+  it("gives nothing to somebody it does not name", () => {
+    const t = tracker({ entries: [shared(["P1"], 6)] });
+    expect(shareOf(t.entries[0], "P2")).toBe(0);
+  });
+
+  it("the shares of an entry add back up to the whole of it", () => {
+    // This is what keeps a bill reconciling once entries are shared.
+    const entry = shared(["P1", "P2", "P3"], 7);
+    const total = ["P1", "P2", "P3"].reduce((sum, id) => sum + shareOf(entry, id), 0);
+    expect(total).toBeCloseTo(7, 10);
+  });
+
+  it("settled totals count only a person's share", () => {
+    const t = tracker({
+      mode: "per_cycle",
+      entries: [shared(["P1", "P2"], 4), shared(["P1"], 3)],
+    });
+    expect(settledFor(t, "P1")).toBe(5);
+    expect(settledFor(t, "P2")).toBe(2);
+  });
+
+  it("today's counter shares an entry the same way", () => {
+    const t = tracker({ mode: "per_cycle", entries: [shared(["P1", "P2"], 8)] });
+    expect(todayFor(t, "P1", local(15))).toBe(4);
+    expect(todayFor(t, "P1", local(15, 0, 23))).toBe(0);
   });
 });

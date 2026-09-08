@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Info, Pencil, RotateCcw } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import Link from "next/link";
+import { Info, Pencil, RotateCcw } from "lucide-react";
 import { ErrorNote } from "@/components/fairy/shell-bits";
 import { amountFor, overrideFor } from "@/lib/billing/from-bill";
 import { formatCentavos, millicentsToPesoString } from "@/lib/billing/money";
 import { HOURS_PER_DAY } from "@/lib/billing/occupancy";
 import { formatQuantity } from "@/lib/tracking/elapsed";
 import { repo, type Bill, type Member, type Tracker } from "@/lib/data";
-import { useRepoAction, useResetOnChange } from "@/lib/data/hooks";
-import { optionalUsageQuantitySchema } from "@/lib/forms/numeric";
-import { parseField } from "@/lib/forms/schemas";
+import { useRepoAction } from "@/lib/data/hooks";
 import type { BillResult, ShareRow } from "@/lib/billing/engine";
 import { cn } from "@/lib/utils";
 
@@ -86,73 +84,17 @@ export function BillLogsPanel({
 /* -- one row -------------------------------------------------------------- */
 
 function LogRow({ bill, me, line }: { bill: Bill; me: Member; line: LogLine }) {
-  const [draft, setDraft] = useState(() => format(line.amount, line.tracker.mode));
-  const isOccupancy = line.tracker.builtIn;
-  // The occupancy clock is entered either way round. Two drafts rather than one
-  // derived from the other, so a half-typed "26." is not rewritten to "26"
-  // under the caret; whichever field is committed refreshes both.
-  const [daysDraft, setDaysDraft] = useState(() => formatDays(line.amount));
-  const [editing, setEditing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const action = useRepoAction();
+  const isOccupancy = line.tracker.builtIn;
 
-  // Follow the store when it changes underneath us — another edit, or the log
-  // being counted again after an override is cleared.
-  if (useResetOnChange(`${line.amount}|${line.override}`)) {
-    setDraft(format(line.amount, line.tracker.mode));
-    setDaysDraft(formatDays(line.amount));
-  }
-
-  async function save(next: number | null) {
-    setError(null);
+  // Not named useSomething: the hooks lint rule reads that prefix as a hook.
+  /** Clearing the override hands the row back to the log. */
+  async function clearOverride() {
     await action.run(() =>
       isOccupancy
-        ? repo.setMemberHours(bill.id, me.id, next)
-        : repo.setLogAmount(bill.id, line.tracker.id, me.id, next),
+        ? repo.setMemberHours(bill.id, me.id, null)
+        : repo.setLogAmount(bill.id, line.tracker.id, me.id, null),
     );
-  }
-
-  const current = Number.parseFloat(draft) || 0;
-
-  /** One unit up or down, committed straight away — there is no blur to wait for. */
-  async function step(delta: number) {
-    const next = Math.max(0, round2(current + delta));
-    setDraft(String(next));
-    setError(null);
-    await save(next);
-  }
-
-  async function commit() {
-    const parsed = parseField(optionalUsageQuantitySchema, draft);
-    if (!parsed.ok) {
-      setError(parsed.message);
-      return;
-    }
-    // Blank means "stop overriding", not "zero" — otherwise there would be no
-    // way back to the log once you had typed over it.
-    if (parsed.value === line.override) return;
-    await save(parsed.value);
-  }
-
-  const currentDays = Number.parseFloat(daysDraft) || 0;
-
-  /** The same edits, a day at a time. Hours is what gets stored either way. */
-  async function stepDays(delta: number) {
-    const next = Math.max(0, round2(currentDays + delta));
-    setDaysDraft(String(next));
-    setError(null);
-    await save(next * HOURS_PER_DAY);
-  }
-
-  async function commitDays() {
-    const parsed = parseField(optionalUsageQuantitySchema, daysDraft);
-    if (!parsed.ok) {
-      setError(parsed.message);
-      return;
-    }
-    const hours = parsed.value === null ? null : parsed.value * HOURS_PER_DAY;
-    if (hours === line.override) return;
-    await save(hours);
   }
 
   return (
@@ -162,94 +104,15 @@ function LogRow({ bill, me, line }: { bill: Bill; me: Member; line: LogLine }) {
       </p>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-        {editing ? (
-          <div className="flex shrink-0 flex-wrap items-stretch gap-1">
-            {isOccupancy && (
-              <NumberField
-                ariaLabel={`${line.tracker.name} — days on this bill`}
-                suffix="days"
-                draft={daysDraft}
-                setDraft={setDaysDraft}
-                onCommit={() => void commitDays()}
-                onStep={(delta) => void stepDays(delta)}
-                canDecrease={currentDays > 0}
-                pending={action.pending}
-                invalid={Boolean(error)}
-                autoFocus
-                onDone={() => {
-                  void commitDays();
-                  setEditing(false);
-                }}
-                onCancel={() => {
-                  setDaysDraft(formatDays(line.amount));
-                  setEditing(false);
-                }}
-                stepLabels={[`Add a day to ${line.tracker.name}`, `Take a day off ${line.tracker.name}`]}
-              />
-            )}
+        <span
+          data-numeric
+          className="shrink-0 text-[13px] font-semibold tabular-nums text-fairy-ink-2"
+        >
+          {describeAmount(line)}
+        </span>
 
-            <NumberField
-              ariaLabel={`${line.tracker.name} — ${line.unitPlural} on this bill`}
-              suffix={shortUnit(line.unit)}
-              draft={draft}
-              setDraft={setDraft}
-              onCommit={() => void commit()}
-              onStep={(delta) => void step(delta)}
-              canDecrease={current > 0}
-              pending={action.pending}
-              invalid={Boolean(error)}
-              autoFocus={!isOccupancy}
-              onDone={() => {
-                void commit();
-                setEditing(false);
-              }}
-              onCancel={() => {
-                setDraft(format(line.amount, line.tracker.mode));
-                setEditing(false);
-              }}
-              stepLabels={[
-                `Add one ${line.unit} to ${line.tracker.name}`,
-                `Take one ${line.unit} off ${line.tracker.name}`,
-              ]}
-            />
-
-            <button
-              type="button"
-              aria-label={`Done editing ${line.tracker.name}`}
-              onClick={() => {
-                void commit();
-                setEditing(false);
-              }}
-              className="flex w-8 items-center justify-center rounded-md border border-fairy-hair text-fairy-moss hover:bg-fairy-moss-tint"
-            >
-              <Check className="size-4" aria-hidden />
-            </button>
-          </div>
-        ) : (
-          <div className="flex shrink-0 items-center gap-1.5">
-            <span
-              data-numeric
-              className="text-[13px] font-semibold tabular-nums text-fairy-ink-2"
-            >
-              {describeAmount(line)}
-            </span>
-            <button
-              type="button"
-              aria-label={`Edit ${line.tracker.name}`}
-              onClick={() => {
-                setDraft(format(line.amount, line.tracker.mode));
-                setDaysDraft(formatDays(line.amount));
-                setEditing(true);
-              }}
-              className="flex size-6 items-center justify-center rounded text-fairy-grey-strong hover:text-fairy-rose"
-            >
-              <Pencil className="size-3.5" aria-hidden />
-            </button>
-          </div>
-        )}
-
-        {/* ml-auto rather than a fixed width: the cost keeps to the right
-            edge whichever side of the edit toggle the row is on. */}
+        {/* ml-auto rather than a fixed width: the cost keeps to the right edge
+            however wide the figure beside it turns out to be. */}
         <span
           data-numeric
           className="ml-auto shrink-0 text-[14px] font-bold tracking-[-0.02em] tabular-nums text-fairy-ink"
@@ -260,14 +123,14 @@ function LogRow({ bill, me, line }: { bill: Bill; me: Member; line: LogLine }) {
         <FormulaHint label={line.tracker.name} formula={line.formula} />
       </div>
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
         {line.override !== null ? (
           <>
             <span className="text-[10.5px] font-bold text-fairy-ember">Edited</span>
             <button
               type="button"
               disabled={action.pending}
-              onClick={() => void save(null)}
+              onClick={() => void clearOverride()}
               className="inline-flex items-center gap-1 text-[10.5px] font-bold text-fairy-rose underline decoration-fairy-pink decoration-2 underline-offset-2 disabled:opacity-45"
             >
               <RotateCcw className="size-3" aria-hidden />
@@ -279,136 +142,23 @@ function LogRow({ bill, me, line }: { bill: Bill; me: Member; line: LogLine }) {
             Counted from your log
           </span>
         )}
+
+        {/* Entries are edited where they are recorded, so a figure has one
+            source rather than two that could disagree. */}
+        <Link
+          href={`/rooms/${bill.roomId}#tracking-heading`}
+          className="inline-flex items-center gap-1 text-[10.5px] font-bold text-fairy-rose underline decoration-fairy-pink decoration-2 underline-offset-2"
+        >
+          <Pencil className="size-3" aria-hidden />
+          Edit log entries
+        </Link>
       </div>
 
-      <ErrorNote>{error ?? action.error}</ErrorNote>
+      <ErrorNote>{action.error}</ErrorNote>
     </div>
   );
 }
 
-/** One number, its unit, and an up/down pair. Two of these make the hours
- *  row editable in days as well. */
-function NumberField({
-  ariaLabel,
-  suffix,
-  draft,
-  setDraft,
-  onCommit,
-  onStep,
-  canDecrease,
-  pending,
-  invalid,
-  autoFocus,
-  onDone,
-  onCancel,
-  stepLabels,
-}: {
-  ariaLabel: string;
-  suffix: string;
-  draft: string;
-  setDraft: (next: string) => void;
-  onCommit: () => void;
-  onStep: (delta: number) => void;
-  canDecrease: boolean;
-  pending: boolean;
-  invalid: boolean;
-  autoFocus?: boolean;
-  onDone: () => void;
-  onCancel: () => void;
-  stepLabels: [string, string];
-}) {
-  return (
-    <div className="flex items-stretch gap-1">
-      <div className="relative w-[5.5rem]">
-        <Input
-          aria-label={ariaLabel}
-          value={draft}
-          autoFocus={autoFocus}
-          inputMode="decimal"
-          data-numeric
-          className="h-9 pr-10 text-right tabular-nums"
-          onChange={(e) => {
-            // Strip rather than reject. Refusing the keystroke looks the same
-            // for one character, but it relies on React re-rendering the old
-            // value before the next one arrives — which it does not when
-            // somebody types quickly or pastes.
-            const cleaned = onlyNumber(e.target.value);
-            // And when the cleaned value equals what state already holds, React
-            // has nothing to re-render, so the stray character would sit in the
-            // DOM. Put the element straight.
-            if (cleaned !== e.target.value) e.target.value = cleaned;
-            setDraft(cleaned);
-          }}
-          onBlur={onCommit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onDone();
-            if (e.key === "Escape") onCancel();
-            if (e.key === "ArrowUp") {
-              e.preventDefault();
-              onStep(1);
-            }
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              onStep(-1);
-            }
-          }}
-          aria-invalid={invalid}
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-[10.5px] font-medium text-fairy-grey-strong"
-        >
-          {suffix}
-        </span>
-      </div>
-
-      {/* A stepper of our own: native number spinners differ per browser,
-          vanish on mobile, and let you type "1e5". */}
-      <div className="flex w-6 flex-col overflow-hidden rounded-md border border-fairy-hair">
-        <Stepper label={stepLabels[0]} disabled={pending} onPress={() => onStep(1)}>
-          <ChevronUp className="size-3" aria-hidden />
-        </Stepper>
-        <Stepper
-          label={stepLabels[1]}
-          disabled={pending || !canDecrease}
-          onPress={() => onStep(-1)}
-        >
-          <ChevronDown className="size-3" aria-hidden />
-        </Stepper>
-      </div>
-    </div>
-  );
-}
-
-/** Half of the up/down control. Kept unfocusable so Tab still goes field to
- *  field — the arrow keys do the same job from inside the input. */
-function Stepper({
-  label,
-  disabled,
-  onPress,
-  children,
-}: {
-  label: string;
-  disabled?: boolean;
-  onPress: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      tabIndex={-1}
-      aria-label={label}
-      disabled={disabled}
-      // Keep the caret in the field: a click would otherwise move focus here,
-      // blurring the input on every press.
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={onPress}
-      className="flex flex-1 items-center justify-center text-fairy-grey-strong hover:bg-fairy-screen hover:text-fairy-ink disabled:opacity-35"
-    >
-      {children}
-    </button>
-  );
-}
 
 /* -- the formula ---------------------------------------------------------- */
 
@@ -484,21 +234,6 @@ function FormulaHint({ label, formula }: { label: string; formula: string }) {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * Digits and at most one decimal point.
- *
- * Blank is allowed and means "use the log". Anything else is dropped, so a
- * pasted "14 pesos" becomes 14 rather than an error.
- */
-function onlyNumber(raw: string): string {
-  const [head, ...rest] = raw.replace(/[^\d.]/g, "").split(".");
-  return rest.length > 0 ? `${head}.${rest.join("")}` : head;
-}
-
-function format(value: number, mode: Tracker["mode"]): string {
-  return value === 0 ? "" : formatQuantity(value, mode);
-}
-
-/**
  * The figure as it reads when nobody is editing it.
  *
  * Hours in the unit shows BOTH: days is the number the split is actually
@@ -510,11 +245,6 @@ function describeAmount(line: LogLine): string {
   if (!line.tracker.builtIn) return `${amount} ${shortUnit(line.unit)}`;
   const days = round2(line.amount / HOURS_PER_DAY);
   return `${days} ${days === 1 ? "day" : "days"} · ${amount} hrs`;
-}
-
-/** The same figure in days, for the occupancy row's second field. */
-function formatDays(hours: number): string {
-  return hours === 0 ? "" : String(round2(hours / HOURS_PER_DAY));
 }
 
 function shortUnit(unit: string): string {
