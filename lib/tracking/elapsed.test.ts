@@ -36,6 +36,7 @@ function tracker(over: Partial<Tracker> = {}): Tracker {
     name: "Hours in the unit",
     mode: "clock",
     builtIn: true,
+    sortOrder: 0,
     runningSince: {},
     entries: [],
     createdAt: "2026-08-22T09:00:00.000Z",

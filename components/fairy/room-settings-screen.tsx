@@ -148,6 +148,7 @@ function ApplianceTemplatesPanel({ room }: { room: Room }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ApplianceTemplate | null>(null);
   const action = useRepoAction();
+  const trackers = useRepoQuery(() => repo.listTrackers(room.id), [room.id]);
 
   async function add(draft: ApplianceDraft) {
     const created = await action.run(() => repo.addApplianceTemplate(room.id, draft));
@@ -259,6 +260,7 @@ function ApplianceTemplatesPanel({ room }: { room: Room }) {
           {adding && (
             <ApplianceForm
               kwhRequired={false}
+              trackers={trackers.data ?? []}
               submitLabel="Add appliance"
               onSubmit={add}
               onCancel={() => setAdding(false)}
@@ -285,8 +287,10 @@ function ApplianceTemplatesPanel({ room }: { room: Room }) {
                 label: editing.label,
                 mode: editing.mode,
                 kwhPerUnit: editing.kwhPerUnit,
+                trackerId: editing.trackerId,
               }}
               kwhRequired={false}
+              trackers={trackers.data ?? []}
               submitLabel="Save changes"
               onSubmit={update}
               onCancel={() => setEditing(null)}

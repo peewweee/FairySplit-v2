@@ -139,8 +139,41 @@ function normaliseBills(bills: Record<string, Bill>): Record<string, Bill> {
       delete (bill as unknown as { memberDays?: unknown }).memberDays;
     }
     bill.memberHours ??= {};
+    // Appliances predate logs. null is right for an always-on one (it IS
+    // "equally"); a metered one keeps pricing from this bill's own usage
+    // entries until somebody links it to a log.
+    for (const appliance of bill.appliances) appliance.trackerId ??= null;
   }
   return bills;
+}
+
+/**
+ * Give an order to logs saved before there was one.
+ *
+ * Derived from the ordering they already had on screen — built-in first, then
+ * oldest — so nothing appears to move on the read that adds it. Deterministic,
+ * so repeating it on every read produces the same answer.
+ */
+function normaliseTrackerOrder(db: FairyDb): void {
+  const byRoom = new Map<string, Tracker[]>();
+  for (const tracker of Object.values(db.trackers)) {
+    const list = byRoom.get(tracker.roomId) ?? [];
+    list.push(tracker);
+    byRoom.set(tracker.roomId, list);
+  }
+  for (const list of byRoom.values()) {
+    if (list.every((t) => typeof t.sortOrder === "number")) continue;
+    list
+      .sort(
+        (a, b) =>
+          Number(b.builtIn) - Number(a.builtIn) ||
+          a.createdAt.localeCompare(b.createdAt) ||
+          a.id.localeCompare(b.id),
+      )
+      .forEach((tracker, i) => {
+        tracker.sortOrder ??= i;
+      });
+  }
 }
 
 function readDb(): FairyDb {
@@ -151,6 +184,11 @@ function readDb(): FairyDb {
       const parsed = JSON.parse(raw) as Partial<FairyDb>;
       const db = { ...emptyDb(), ...parsed };
       db.bills = normaliseBills(db.bills);
+      // Room templates predate logs too, and they seed every new bill.
+      for (const room of Object.values(db.rooms)) {
+        for (const template of room.applianceDefaults ?? []) template.trackerId ??= null;
+      }
+      normaliseTrackerOrder(db);
       return db;
     }
     const legacy = window.localStorage.getItem(LEGACY_KEY_V1);
@@ -210,6 +248,30 @@ function requireBill(db: FairyDb, id: string): Bill {
   return bill;
 }
 
+/** One room's logs: built-in first, then oldest-added. Id breaks a tie so the
+ *  order never shuffles between reads. */
+function trackersOf(db: FairyDb, roomId: string): Tracker[] {
+  return Object.values(db.trackers)
+    .filter((t) => t.roomId === roomId)
+    // The user's own order wins. createdAt and id only break ties, so the list
+    // never shuffles between two reads of the same data.
+    .sort(
+      (a, b) =>
+        a.sortOrder - b.sortOrder ||
+        a.createdAt.localeCompare(b.createdAt) ||
+        a.id.localeCompare(b.id),
+    )
+    .map(clone);
+}
+
+/** One past the end of a room's order, for something being added. */
+function nextSortOrder(db: FairyDb, roomId: string): number {
+  const used = Object.values(db.trackers)
+    .filter((t) => t.roomId === roomId)
+    .map((t) => t.sortOrder ?? 0);
+  return used.length === 0 ? 0 : Math.max(...used) + 1;
+}
+
 function requireTracker(db: FairyDb, id: string): Tracker {
   const tracker = db.trackers[id];
   if (!tracker) throw new RepositoryError("That log no longer exists.");
@@ -230,6 +292,8 @@ function ensureOccupancyTracker(db: FairyDb, roomId: string): Tracker {
     name: OCCUPANCY_TRACKER_NAME,
     mode: "clock",
     builtIn: true,
+    // A room's first log, so it leads until somebody drags it elsewhere.
+    sortOrder: nextSortOrder(db, roomId),
     runningSince: {},
     entries: [],
     createdAt: new Date().toISOString(),
@@ -428,6 +492,7 @@ export class LocalRepository implements Repository {
         label: input.label.trim(),
         mode: input.mode,
         kwhPerUnit: input.kwhPerUnit,
+        trackerId: input.trackerId,
         active: true,
       };
       room.applianceDefaults.push(template);
@@ -499,6 +564,7 @@ export class LocalRepository implements Repository {
                 label: t.label,
                 mode: t.mode,
                 kwhPerUnit: t.kwhPerUnit,
+                trackerId: t.trackerId ?? null,
               }))
           : [];
 
@@ -586,6 +652,7 @@ export class LocalRepository implements Repository {
         label: input.label.trim(),
         mode: input.mode,
         kwhPerUnit: input.kwhPerUnit,
+        trackerId: input.trackerId,
       };
       bill.appliances.push(appliance);
       return clone(appliance);
@@ -716,21 +783,20 @@ export class LocalRepository implements Repository {
   /* -- time tracking ------------------------------------------------------ */
 
   async listTrackers(roomId: string): Promise<Tracker[]> {
-    return mutate((db) => {
-      requireRoom(db, roomId);
-      ensureOccupancyTracker(db, roomId);
-      return Object.values(db.trackers)
-        .filter((t) => t.roomId === roomId)
-        // Built-in first, then oldest-added; id breaks a same-instant tie so
-        // the order never shuffles between reads.
-        .sort(
-          (a, b) =>
-            Number(b.builtIn) - Number(a.builtIn) ||
-            a.createdAt.localeCompare(b.createdAt) ||
-            a.id.localeCompare(b.id),
-        )
-        .map(clone);
-    });
+    const db = readDb();
+    requireRoom(db, roomId);
+
+    // This read HEALS a room that has no occupancy clock yet, but it must only
+    // write when it actually creates one. Writing on every read would notify
+    // every open screen, and each of those would read again - an endless loop.
+    const missing = !Object.values(db.trackers).some((t) => t.roomId === roomId && t.builtIn);
+    if (missing) {
+      return mutate((fresh) => {
+        ensureOccupancyTracker(fresh, roomId);
+        return trackersOf(fresh, roomId);
+      });
+    }
+    return trackersOf(db, roomId);
   }
 
   async addTracker(roomId: string, input: TrackerInput): Promise<Tracker> {
@@ -742,6 +808,7 @@ export class LocalRepository implements Repository {
         name: input.name.trim(),
         mode: input.mode,
         builtIn: false,
+        sortOrder: nextSortOrder(db, roomId),
         runningSince: {},
         entries: [],
         createdAt: new Date().toISOString(),
@@ -768,6 +835,20 @@ export class LocalRepository implements Repository {
         );
       }
       delete db.trackers[trackerId];
+    });
+  }
+
+  async reorderTrackers(roomId: string, orderedIds: string[]): Promise<Tracker[]> {
+    return mutate((db) => {
+      requireRoom(db, roomId);
+      const rank = new Map(orderedIds.map((id, i) => [id, i]));
+      for (const tracker of Object.values(db.trackers)) {
+        if (tracker.roomId !== roomId) continue;
+        // Anything the caller did not list keeps its place at the end rather
+        // than jumping to the front on a 0 it never asked for.
+        tracker.sortOrder = rank.get(tracker.id) ?? orderedIds.length + tracker.sortOrder;
+      }
+      return trackersOf(db, roomId);
     });
   }
 

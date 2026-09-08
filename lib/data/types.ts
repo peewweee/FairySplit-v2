@@ -12,7 +12,7 @@ export type Centavos = number;
 /** 1/1000 of a centavo. ₱14.86/kWh => 14_860_000 */
 export type Millicents = number;
 
-export type ApplianceMode = "always_on" | "per_hour" | "per_cycle";
+export type ApplianceMode = "always_on" | "per_hour" | "per_cycle" | "per_day";
 
 /**
  * What kind of bill this is. It decides which fields exist, so it has to be
@@ -58,6 +58,7 @@ export const APPLIANCE_MODES: readonly ApplianceMode[] = [
   "always_on",
   "per_hour",
   "per_cycle",
+  "per_day",
 ] as const;
 
 /** What `kwhPerUnit` is measured against, per mode (§10.3). */
@@ -82,6 +83,12 @@ export const APPLIANCE_MODE_META: Record<
     unit: "cycle",
     unitPlural: "cycles",
     hint: "Charged to whoever logged the cycles.",
+  },
+  per_day: {
+    label: "Per day",
+    unit: "day",
+    unitPlural: "days",
+    hint: "Charged to whoever logged the days.",
   },
 };
 
@@ -113,6 +120,8 @@ export interface ApplianceTemplate {
   mode: ApplianceMode;
   /** null = not provided yet. */
   kwhPerUnit: number | null;
+  /** See BillAppliance.trackerId — the same meaning, carried into each bill. */
+  trackerId: string | null;
   active: boolean;
 }
 
@@ -167,6 +176,19 @@ export interface BillAppliance {
   label: string;
   mode: ApplianceMode;
   kwhPerUnit: number | null;
+  /**
+   * Which log supplies the quantities — the answer to "how is it charged?".
+   *
+   * null means shared equally: it runs for everyone whether they were home or
+   * not, so there is nothing to log against it. That is the only built-in
+   * answer; every other one names a Tracker in the room, and `mode` follows
+   * that tracker's unit.
+   *
+   * A null here with a metered `mode` is a record from before logs existed. It
+   * still prices from this bill's own usage entries, and the form offers to
+   * link it to a log rather than silently re-costing it.
+   */
+  trackerId: string | null;
 }
 
 /**
@@ -233,21 +255,21 @@ export const TRACKER_MODE_META: Record<
     live: true,
   },
   per_day: {
-    label: "Manual — per day",
+    label: "Per day",
     hint: "You type the number of days.",
     unit: "day",
     unitPlural: "days",
     live: false,
   },
   per_hour: {
-    label: "Manual — per hour",
+    label: "Per hour",
     hint: "You type the number of hours.",
     unit: "hour",
     unitPlural: "hours",
     live: false,
   },
   per_cycle: {
-    label: "Manual — per cycle",
+    label: "Per cycle",
     hint: "You type the number of runs — a wash, a dry, a cook.",
     unit: "cycle",
     unitPlural: "cycles",
@@ -278,6 +300,11 @@ export interface Tracker {
    * switched to a manual mode — it is the one whose hours weight the split.
    */
   builtIn: boolean;
+  /**
+   * Where it sits in the list. Shared, like the tracker itself — one person
+   * dragging the aircon to the top moves it for the whole room.
+   */
+  sortOrder: number;
   /** memberId -> ISO instant their clock started. Absent means stopped. */
   runningSince: Record<string, string>;
   entries: LogEntry[];
@@ -286,3 +313,21 @@ export interface Tracker {
 
 /** What the built-in occupancy clock is called when a room first gets one. */
 export const OCCUPANCY_TRACKER_NAME = "Hours in the unit";
+
+/**
+ * What an appliance charged from a given log is measured in.
+ *
+ * A running clock produces hours, so it prices per hour. The manual modes
+ * already name their own unit.
+ */
+export function applianceModeForTracker(mode: TrackerMode): ApplianceMode {
+  switch (mode) {
+    case "clock":
+    case "per_hour":
+      return "per_hour";
+    case "per_cycle":
+      return "per_cycle";
+    case "per_day":
+      return "per_day";
+  }
+}

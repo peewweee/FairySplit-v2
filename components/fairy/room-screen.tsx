@@ -34,7 +34,6 @@ export function RoomScreen({ roomId }: { roomId: string }) {
       <PageHeader
         title={room.data.name}
         meta={<MembersButton roomId={roomId} />}
-        description="Every bill carries its own dates and day counts, so each one splits on exactly the stretch it covers."
         action={
           <>
             <JoinCode code={room.data.joinCode} copyable />

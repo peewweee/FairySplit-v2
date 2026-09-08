@@ -22,8 +22,6 @@ import { WarningBanner } from "@/components/fairy/warning-banner";
 import { Crumbs, ErrorNote, LoadingRows, TickItem } from "@/components/fairy/shell-bits";
 import { describeCoverage } from "@/components/fairy/bills-panel";
 import { MemberHoursInput } from "@/components/fairy/member-days-input";
-import { MyLogsPanel } from "@/components/fairy/my-logs-panel";
-import { findMe } from "@/components/fairy/bills-panel";
 import {
   coverageDays,
   memberDaysFor,
@@ -31,7 +29,7 @@ import {
   unfilledCount,
 } from "@/lib/billing/occupancy";
 import { applyRoundUp } from "@/lib/billing/engine";
-import { splitBill } from "@/lib/billing/from-bill";
+import { splitBill, trackerProblems } from "@/lib/billing/from-bill";
 import { formatCentavos } from "@/lib/billing/money";
 import { repo, type Bill, type Member, type Room } from "@/lib/data";
 import { useRepoAction, useRepoQuery } from "@/lib/data/hooks";
@@ -41,7 +39,6 @@ export function BillScreen({ roomId, billId }: { roomId: string; billId: string 
   const room = useRepoQuery(() => repo.getRoom(roomId), [roomId]);
   const bill = useRepoQuery(() => repo.getBill(billId), [billId]);
   const members = useRepoQuery(() => repo.listMembers(roomId), [roomId]);
-  const identity = useRepoQuery(() => repo.getIdentity(), []);
 
   if (bill.loading || room.loading || members.loading) return <LoadingRows rows={3} />;
 
@@ -59,7 +56,6 @@ export function BillScreen({ roomId, billId }: { roomId: string; billId: string 
       room={room.data}
       bill={bill.data}
       members={members.data ?? []}
-      identity={identity.data ?? null}
     />
   );
 }
@@ -68,15 +64,16 @@ function BillBody({
   room,
   bill,
   members,
-  identity,
 }: {
   room: Room;
   bill: Bill;
   members: Member[];
-  identity: { name: string } | null;
 }) {
   const billed = applyRoundUp(bill.totalCentavos, bill.roundUpToPeso);
-  const { result, problem } = splitBill(bill, members);
+  // Appliances charged from a log read their quantities out of it, so the
+  // split cannot be computed without them.
+  const trackers = useRepoQuery(() => repo.listTrackers(bill.roomId), [bill.roomId]);
+  const { result, problem } = splitBill(bill, members, trackers.data ?? []);
   const action = useRepoAction();
 
   return (
@@ -104,12 +101,16 @@ function BillBody({
         </p>
       </div>
 
-      <MyLogsPanel bill={bill} me={findMe(identity?.name, members)} members={members} />
-
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]">
         {/* The share table is the point of the screen, so it leads. */}
         <div className="order-2 grid gap-4 lg:order-1">
           <WarningBanner warnings={result?.warnings ?? []} />
+
+          {/* An appliance pointing at a deleted log costs nothing, which looks
+              exactly like an appliance nobody used. Say which it is. */}
+          {trackerProblems(bill, trackers.data ?? []).map((message) => (
+            <ErrorNote key={message}>{message}</ErrorNote>
+          ))}
 
           {result ? (
             <>

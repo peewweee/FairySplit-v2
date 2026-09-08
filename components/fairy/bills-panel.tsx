@@ -10,13 +10,14 @@ import { SparkleBurst, useSparkle } from "@/components/fairy/sparkle-burst";
 import { applyRoundUp } from "@/lib/billing/engine";
 import { splitBill } from "@/lib/billing/from-bill";
 import { formatCentavos } from "@/lib/billing/money";
-import { repo, type Bill, type Member } from "@/lib/data";
+import { repo, type Bill, type Member, type Tracker } from "@/lib/data";
 import { useRepoQuery } from "@/lib/data/hooks";
 
 export function BillsPanel({ roomId, members }: { roomId: string; members: Member[] }) {
   const bills = useRepoQuery(() => repo.listBills(roomId), [roomId]);
   const identity = useRepoQuery(() => repo.getIdentity(), []);
   const me = findMe(identity.data?.name, members);
+  const trackers = useRepoQuery(() => repo.listTrackers(roomId), [roomId]);
   const list = bills.data ?? [];
 
   return (
@@ -37,7 +38,13 @@ export function BillsPanel({ roomId, members }: { roomId: string; members: Membe
         <ul className="grid gap-2">
           {list.map((bill) => (
             <li key={bill.id}>
-              <BillRow roomId={roomId} bill={bill} members={members} me={me} />
+              <BillRow
+                roomId={roomId}
+                bill={bill}
+                members={members}
+                me={me}
+                trackers={trackers.data ?? []}
+              />
             </li>
           ))}
         </ul>
@@ -96,17 +103,18 @@ function BillRow({
   bill,
   members,
   me,
+  trackers,
 }: {
   roomId: string;
   bill: Bill;
   members: Member[];
   /** The member this browser belongs to, if we can tell. */
   me: Member | null;
+  trackers: Tracker[];
 }) {
   const [editing, setEditing] = useState(false);
   const billed = applyRoundUp(bill.totalCentavos, bill.roundUpToPeso);
-  const mine = me ? myLine(bill, members, me) : null;
-
+  cons
   return (
     <div className="relative border border-fairy-hair bg-card px-3.5 py-3 transition-colors hover:bg-fairy-screen">
       <Link
@@ -220,7 +228,7 @@ export function findMe(identityName: string | undefined, members: Member[]): Mem
 }
 
 /** This person's logged hours and their share of one bill. */
-function myLine(bill: Bill, members: Member[], me: Member) {
+function myLine(bill: Bill, members: Member[], me: Member, trackers: Tracker[]) {
   const perHour = new Set(
     bill.appliances.filter((a) => a.mode === "per_hour").map((a) => a.id),
   );
@@ -228,7 +236,7 @@ function myLine(bill: Bill, members: Member[], me: Member) {
     .filter((u) => perHour.has(u.applianceId) && u.participantIds.includes(me.id))
     .reduce((acc, u) => acc + u.quantity, 0);
 
-  const { result } = splitBill(bill, members);
+  const { result } = splitBill(bill, members, trackers);
   const row = result?.rows.find((r) => r.memberId === me.id);
   if (!row) return null;
 

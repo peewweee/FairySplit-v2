@@ -58,6 +58,8 @@ export interface ApplianceInput {
   label: string;
   mode: ApplianceMode;
   kwhPerUnit: number | null;
+  /** null = shared equally; otherwise the Tracker its quantities come from. */
+  trackerId: string | null;
 }
 
 export interface UseInput {
@@ -160,6 +162,8 @@ export interface Repository {
   renameTracker(trackerId: string, name: string): Promise<Tracker>;
   /** Refuses on the built-in occupancy clock. */
   removeTracker(trackerId: string): Promise<void>;
+  /** Rewrites the whole room's order from a list of ids, first to last. */
+  reorderTrackers(roomId: string, orderedIds: string[]): Promise<Tracker[]>;
   /** No-op if this person's clock is already running. */
   startClock(trackerId: string, memberId: string): Promise<Tracker>;
   /** Closes the open run into an entry. No-op if nothing is running. */

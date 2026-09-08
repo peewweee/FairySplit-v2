@@ -86,15 +86,40 @@ export function dayKeyOf(nowMs: number): string {
  */
 export function amountToday(entry: LogEntry, nowMs: number): number {
   const { start, end } = dayBounds(nowMs);
+  return amountInRange(entry, start, end);
+}
+
+/**
+ * How much of one entry belongs to an arbitrary window [startMs, endMs).
+ *
+ * The same rule the daily counter uses, widened so a bill can ask the same
+ * question of its own dates. A clock run is counted by its OVERLAP with the
+ * window, so a stay that begins before the billing period only contributes the
+ * part inside it. A typed entry has no span and belongs to the day it was
+ * typed, whole.
+ */
+export function amountInRange(entry: LogEntry, startMs: number, endMs: number): number {
   if (entry.startedAt && entry.endedAt) {
     const from = Date.parse(entry.startedAt);
     const to = Date.parse(entry.endedAt);
     if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
-    const overlap = Math.min(to, end) - Math.max(from, start);
+    const overlap = Math.min(to, endMs) - Math.max(from, startMs);
     return Math.max(0, overlap) / MS_PER_HOUR;
   }
   const at = Date.parse(entry.createdAt);
-  return Number.isFinite(at) && at >= start && at < end ? entry.quantity : 0;
+  return Number.isFinite(at) && at >= startMs && at < endMs ? entry.quantity : 0;
+}
+
+/** Everything one person logged against one tracker inside a window. */
+export function amountForMemberInRange(
+  tracker: Tracker,
+  memberId: string,
+  startMs: number,
+  endMs: number,
+): number {
+  return tracker.entries
+    .filter((e) => e.memberId === memberId)
+    .reduce((sum, e) => sum + amountInRange(e, startMs, endMs), 0);
 }
 
 /**

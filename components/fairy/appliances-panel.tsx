@@ -26,9 +26,11 @@ import {
   type Bill,
   type BillAppliance,
   type Member,
+  type Tracker,
 } from "@/lib/data";
 import { coverageDays } from "@/lib/billing/occupancy";
-import { useRepoAction } from "@/lib/data/hooks";
+import { usesFromTrackers } from "@/lib/billing/from-bill";
+import { useRepoAction, useRepoQuery } from "@/lib/data/hooks";
 import { usageQuantitySchema } from "@/lib/forms/numeric";
 import { parseField } from "@/lib/forms/schemas";
 
@@ -44,6 +46,7 @@ export function AppliancesPanel({ bill, members }: { bill: Bill; members: Member
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<BillAppliance | null>(null);
   const action = useRepoAction();
+  const trackers = useRepoQuery(() => repo.listTrackers(bill.roomId), [bill.roomId]);
 
   const rate = bill.rateMillicents ?? 0;
   const daysCovered = coverageDays(bill);
@@ -102,6 +105,7 @@ export function AppliancesPanel({ bill, members }: { bill: Bill; members: Member
                 members={members}
                 rate={rate}
                 daysCovered={daysCovered}
+                trackers={trackers.data ?? []}
                 onEdit={() => setEditing(item)}
               />
             </li>
@@ -125,6 +129,7 @@ export function AppliancesPanel({ bill, members }: { bill: Bill; members: Member
             <ApplianceForm
               submitLabel="Add appliance"
               allowAlwaysOn={daysCovered !== null}
+              trackers={trackers.data ?? []}
               onSubmit={add}
               onCancel={() => setAdding(false)}
               pending={action.pending}
@@ -149,9 +154,11 @@ export function AppliancesPanel({ bill, members }: { bill: Bill; members: Member
                 label: editing.label,
                 mode: editing.mode,
                 kwhPerUnit: editing.kwhPerUnit,
+                trackerId: editing.trackerId,
               }}
               submitLabel="Save changes"
               allowAlwaysOn={daysCovered !== null}
+              trackers={trackers.data ?? []}
               onSubmit={update}
               onCancel={() => setEditing(null)}
               pending={action.pending}
@@ -170,6 +177,7 @@ function ApplianceCard({
   members,
   rate,
   daysCovered,
+  trackers,
   onEdit,
 }: {
   bill: Bill;
@@ -177,11 +185,19 @@ function ApplianceCard({
   members: Member[];
   rate: number;
   daysCovered: number | null;
+  trackers: Tracker[];
   onEdit: () => void;
 }) {
   const action = useRepoAction();
   const meta = APPLIANCE_MODE_META[appliance.mode];
-  const uses = bill.uses.filter((u) => u.applianceId === appliance.id);
+
+  // An appliance charged from a log reads its quantities out of that log, so
+  // showing this bill's hand-typed entries would contradict the share table.
+  // Same function the engine is fed, so the two cannot drift.
+  const linked = trackers.find((t) => t.id === appliance.trackerId) ?? null;
+  const uses = appliance.trackerId
+    ? usesFromTrackers(bill, members, trackers).filter((u) => u.applianceId === appliance.id)
+    : bill.uses.filter((u) => u.applianceId === appliance.id);
 
   // Running total of logged usage, so double-entry is obvious (10.2).
   const loggedQuantity = uses.reduce((acc, u) => acc + u.quantity, 0);
@@ -257,7 +273,15 @@ function ApplianceCard({
         </Button>
       </div>
 
-      {appliance.mode !== "always_on" && (
+      {appliance.trackerId !== null && (
+        <p className="mt-2 text-[11.5px] font-medium text-fairy-grey-strong">
+          {linked
+            ? `Counted from your ‘${linked.name}’ log, for the dates this bill covers.`
+            : "The log this was charged from no longer exists."}
+        </p>
+      )}
+
+      {appliance.mode !== "always_on" && appliance.trackerId === null && (
         <>
           {uses.length > 0 && (
             <ul className="mt-3 grid gap-1">

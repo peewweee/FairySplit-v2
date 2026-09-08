@@ -41,6 +41,7 @@ const appliance = (over: Partial<BillAppliance> & { id: string }): BillAppliance
   label: over.id,
   mode: "per_hour",
   kwhPerUnit: 1,
+  trackerId: null,
   ...over,
 });
 
@@ -551,6 +552,9 @@ function randomInput(rnd: () => number): BillInput {
         mode,
         // Section 3.1 makes this required on any appliance form.
         kwhPerUnit: Math.round(rnd() * 3000) / 1000,
+        // The engine is handed uses directly; where they came from is the
+        // adapter's business, so the link is irrelevant here.
+        trackerId: null,
       });
     }
   }

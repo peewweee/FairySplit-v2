@@ -38,8 +38,9 @@ import {
   type Bill,
   type BillKind,
   type Member,
+  type Tracker,
 } from "@/lib/data";
-import { useRepoAction } from "@/lib/data/hooks";
+import { useRepoAction, useRepoQuery } from "@/lib/data/hooks";
 import { billTotalSchema, chargeAmountSchema, optionalRateSchema } from "@/lib/forms/numeric";
 import { isoDateSchema, labelSchema, optionalIsoDateSchema, parseField } from "@/lib/forms/schemas";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ interface DraftAppliance {
   label: string;
   mode: ApplianceMode;
   kwhPerUnit: number | null;
+  trackerId: string | null;
 }
 
 interface DraftCharge {
@@ -106,6 +108,9 @@ export function BillDialog({
     bill?.otherCharges.map((c) => ({ ...c, key: c.id, id: c.id })) ?? [],
   );
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
+
+  // The room's logs are what "how is it charged?" offers beyond "Equally".
+  const trackers = useRepoQuery(() => repo.listTrackers(roomId), [roomId]);
 
   // COUNTED from the two dates, never typed.
   const covered = daysBetween(startsOn || null, endsOn || null);
@@ -193,7 +198,12 @@ export function BillDialog({
         if (!keptIds.has(existing.id)) await repo.removeBillAppliance(target.id, existing.id);
       }
       for (const draft of keptAppliances) {
-        const payload = { label: draft.label, mode: draft.mode, kwhPerUnit: draft.kwhPerUnit };
+        const payload = {
+          label: draft.label,
+          mode: draft.mode,
+          kwhPerUnit: draft.kwhPerUnit,
+          trackerId: draft.trackerId,
+        };
         if (draft.id) await repo.updateBillAppliance(target.id, draft.id, payload);
         else await repo.addBillAppliance(target.id, payload);
       }
@@ -424,6 +434,7 @@ export function BillDialog({
                 drafts={appliances}
                 onChange={setAppliances}
                 allowAlwaysOn={covered !== null}
+                trackers={trackers.data ?? []}
               />
             </CollapsibleSection>
           )}
@@ -514,10 +525,12 @@ function ApplianceDrafts({
   drafts,
   onChange,
   allowAlwaysOn,
+  trackers,
 }: {
   drafts: DraftAppliance[];
   onChange: (next: DraftAppliance[]) => void;
   allowAlwaysOn: boolean;
+  trackers: Tracker[];
 }) {
   const [adding, setAdding] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -590,10 +603,12 @@ function ApplianceDrafts({
                     label: editingDraft.label,
                     mode: editingDraft.mode,
                     kwhPerUnit: editingDraft.kwhPerUnit,
+                    trackerId: editingDraft.trackerId,
                   }
                 : undefined
             }
             allowAlwaysOn={allowAlwaysOn}
+            trackers={trackers}
             submitLabel={editingDraft ? "Update appliance" : "Add appliance"}
             onSubmit={upsert}
             onCancel={() => {

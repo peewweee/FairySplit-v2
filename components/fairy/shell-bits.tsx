@@ -21,18 +21,41 @@ export function PageHeader({
   /** Sits directly under the title — a compact control, not prose. */
   meta?: ReactNode;
 }) {
+  const heading = (
+    <>
+      {eyebrow && (
+        <p className="mb-2.5 text-[11px] font-bold tracking-[0.14em] text-fairy-rose uppercase">
+          {eyebrow}
+        </p>
+      )}
+      <h1 className="max-w-[20ch] text-[clamp(26px,3.4vw,36px)] leading-[1.06] text-fairy-ink">
+        {title}
+      </h1>
+    </>
+  );
+
+  const controls = action && <div className="flex shrink-0 items-center gap-2">{action}</div>;
+
+  // With no prose under the title, the only thing left on the left is a compact
+  // control — so the actions belong ON ITS LINE, centred against it, rather
+  // than bottom-aligned to a column that is no longer there.
+  if (meta && !description) {
+    return (
+      <div className="mb-8 border-b border-fairy-hair pb-6">
+        {heading}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">{meta}</div>
+          {controls}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-8 border-b border-fairy-hair pb-6">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="min-w-0">
-          {eyebrow && (
-            <p className="mb-2.5 text-[11px] font-bold tracking-[0.14em] text-fairy-rose uppercase">
-              {eyebrow}
-            </p>
-          )}
-          <h1 className="max-w-[20ch] text-[clamp(26px,3.4vw,36px)] leading-[1.06] text-fairy-ink">
-            {title}
-          </h1>
+          {heading}
           {meta && <div className="mt-3">{meta}</div>}
           {description && (
             <div className="mt-3 max-w-[62ch] text-[14px] leading-[1.6] font-medium text-fairy-grey-strong">
@@ -40,7 +63,7 @@ export function PageHeader({
             </div>
           )}
         </div>
-        {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
+        {controls}
       </div>
     </div>
   );

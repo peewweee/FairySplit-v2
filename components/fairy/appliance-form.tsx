@@ -7,6 +7,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -14,9 +15,10 @@ import { Label } from "@/components/ui/label";
 import { Field } from "@/components/fairy/field";
 import { ErrorNote } from "@/components/fairy/shell-bits";
 import {
-  APPLIANCE_MODES,
   APPLIANCE_MODE_META,
+  applianceModeForTracker,
   type ApplianceMode,
+  type Tracker,
 } from "@/lib/data";
 import {
   dayCountSchema,
@@ -31,7 +33,14 @@ export interface ApplianceDraft {
   label: string;
   mode: ApplianceMode;
   kwhPerUnit: number | null;
+  /** null = shared equally. Otherwise the log its quantities come from. */
+  trackerId: string | null;
 }
+
+/** The one built-in answer: it runs for everyone, so nobody logs against it. */
+const EQUALLY = "equally";
+/** Only ever offered to an appliance that is already in this state. */
+const UNLINKED = "unlinked";
 
 /**
  * The appliance form, shared by room templates and by a bill's frozen copy.
@@ -44,6 +53,7 @@ export function ApplianceForm({
   initial,
   kwhRequired = true,
   allowAlwaysOn = true,
+  trackers = [],
   submitLabel,
   onSubmit,
   onCancel,
@@ -54,6 +64,8 @@ export function ApplianceForm({
   kwhRequired?: boolean;
   /** Section 3.1: an always-on appliance also needs the bill's day count. */
   allowAlwaysOn?: boolean;
+  /** The room's logs. Each one becomes a way to charge this appliance. */
+  trackers?: Tracker[];
   submitLabel: string;
   onSubmit: (draft: ApplianceDraft) => void;
   onCancel?: () => void;
@@ -61,7 +73,25 @@ export function ApplianceForm({
   error?: string | null;
 }) {
   const [label, setLabel] = useState(initial?.label ?? "");
-  const [mode, setMode] = useState<ApplianceMode>(initial?.mode ?? "per_hour");
+
+  // An appliance saved before logs existed: metered, but pointing at nothing.
+  // Its old mode is kept so choosing "leave as is" does not re-cost the bill.
+  const legacyMode =
+    initial && initial.trackerId === null && initial.mode !== "always_on" ? initial.mode : null;
+
+  const [choice, setChoice] = useState<string>(() => {
+    if (initial?.trackerId) return initial.trackerId;
+    if (legacyMode) return UNLINKED;
+    return EQUALLY;
+  });
+
+  const picked = trackers.find((t) => t.id === choice) ?? null;
+  const mode: ApplianceMode = picked
+    ? applianceModeForTracker(picked.mode)
+    : choice === UNLINKED && legacyMode
+      ? legacyMode
+      : "always_on";
+  const trackerId = picked ? picked.id : null;
   const [kwh, setKwh] = useState(
     initial?.kwhPerUnit === null || initial?.kwhPerUnit === undefined
       ? ""
@@ -87,6 +117,7 @@ export function ApplianceForm({
       label: parsedLabel.value,
       mode,
       kwhPerUnit: parsedKwh.value as number | null,
+      trackerId,
     });
   }
 
@@ -116,26 +147,49 @@ export function ApplianceForm({
             </span>
           </Label>
         </div>
-        <Select value={mode} onValueChange={(v) => setMode(v as ApplianceMode)}>
+        <Select value={choice} onValueChange={setChoice}>
           <SelectTrigger id="appliance-mode" aria-required className="h-10 w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {APPLIANCE_MODES.map((m) => (
-              <SelectItem
-                key={m}
-                value={m}
-                disabled={m === "always_on" && !allowAlwaysOn}
-              >
-                {APPLIANCE_MODE_META[m].label}
+            {/* Equally is the only answer that needs no log, so it sits on its
+                own above the rule rather than in the list of logs. */}
+            <SelectItem value={EQUALLY} disabled={!allowAlwaysOn}>
+              <span className="font-bold">Equally</span>
+              <span className="ml-2 rounded-full bg-fairy-tint px-1.5 py-0.5 text-[10px] font-bold text-fairy-tint-ink">
+                Built in
+              </span>
+            </SelectItem>
+
+            {legacyMode && (
+              <SelectItem value={UNLINKED}>Logged on this bill only</SelectItem>
+            )}
+
+            <SelectSeparator />
+
+            {trackers.map((tracker) => (
+              <SelectItem key={tracker.id} value={tracker.id}>
+                Track based on &lsquo;{tracker.name}&rsquo;
               </SelectItem>
             ))}
+
+            <p className="px-2 py-1.5 text-[11px] leading-[1.4] font-medium text-fairy-grey-strong">
+              Want to charge it by something else? Add a log under Your tracking.
+            </p>
           </SelectContent>
         </Select>
-        <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey">{meta.hint}</p>
+
+        <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey">
+          {trackerId
+            ? `Charged to whoever logged the ${meta.unitPlural}, from that log.`
+            : choice === UNLINKED
+              ? "Keeps using the usage entries already on this bill."
+              : APPLIANCE_MODE_META.always_on.hint}
+        </p>
+
         {!allowAlwaysOn && (
           <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-ember">
-            &ldquo;Always on&rdquo; needs the dates this bill covers — its cost is
+            &ldquo;Equally&rdquo; needs the dates this bill covers — its cost is
             kWh/day × days. Fill in From and To and it unlocks.
           </p>
         )}
