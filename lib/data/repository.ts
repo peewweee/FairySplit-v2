@@ -127,6 +127,13 @@ export interface Repository {
   /** The ONE writer of occupancy (section 12). Phase C writes here from the
    *  timer instead of from a typed number. */
   setMemberHours(billId: string, memberId: string, hours: number | null): Promise<Bill>;
+  /** null clears the override, putting that row back under the log's control. */
+  setLogAmount(
+    billId: string,
+    trackerId: string,
+    memberId: string,
+    amount: number | null,
+  ): Promise<Bill>;
 
   /* -- a bill's frozen appliance copy ------------------------------------ */
   addBillAppliance(billId: string, input: ApplianceInput): Promise<BillAppliance>;

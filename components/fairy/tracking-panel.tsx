@@ -1,28 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Check, ChevronDown, GripVertical, Pencil, Plus, Timer, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, GripVertical, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Field } from "@/components/fairy/field";
 import { ErrorNote, LoadingRows } from "@/components/fairy/shell-bits";
 import { findMe } from "@/components/fairy/bills-panel";
+import { AddLogForm } from "@/components/fairy/add-log-dialog";
 import {
   dayKeyOf,
   describeQuantity,
@@ -33,13 +17,11 @@ import {
   todayFor,
 } from "@/lib/tracking/elapsed";
 import {
-  TRACKER_MODES,
   TRACKER_MODE_META,
   repo,
   type LogEntry,
   type Member,
   type Tracker,
-  type TrackerMode,
 } from "@/lib/data";
 import { useRepoAction, useRepoQuery } from "@/lib/data/hooks";
 import { usageQuantitySchema } from "@/lib/forms/numeric";
@@ -367,10 +349,13 @@ function TrackerCard({
     <article
       ref={nodeRef}
       className={cn(
-        "relative rounded-xl border bg-card p-3.5 sm:p-4",
-        dragging
-          ? "z-10 border-fairy-pink shadow-[0_14px_30px_rgba(28,21,24,0.18)]"
-          : "border-fairy-hair",
+        "relative rounded-xl p-3.5 sm:p-4",
+        // The occupancy clock decides how every bill is weighted, so it is the
+        // one card that should catch your eye across a list of added logs.
+        tracker.builtIn
+          ? "border-2 border-fairy-pink bg-fairy-tint"
+          : cn("border bg-card", dragging ? "border-fairy-pink" : "border-fairy-hair"),
+        dragging && "z-10 shadow-[0_14px_30px_rgba(28,21,24,0.18)]",
       )}
       style={{
         // The lift is a transform, not a layout change: the card leaves the
@@ -443,13 +428,19 @@ function ClockBody({
   return (
     <>
       <div className="min-w-0">
-        <TodayLabel />
+        <TodayLabel accent={tracker.builtIn} />
         <p
           data-numeric
           aria-live="off"
           className={cn(
             "text-[40px] leading-none font-bold tracking-[-0.03em] tabular-nums sm:text-[46px]",
-            running ? "text-fairy-ink" : "text-fairy-grey-strong",
+            tracker.builtIn
+              ? running
+                ? "text-fairy-rose"
+                : "text-fairy-tint-ink"
+              : running
+                ? "text-fairy-ink"
+                : "text-fairy-grey-strong",
           )}
         >
           {formatDuration(today)}
@@ -509,9 +500,18 @@ function InOut({
     <div
       role="group"
       aria-label={`Clock in or out of ${label}`}
-      className="mt-4 flex w-full rounded-full border-2 border-fairy-hair-2 bg-fairy-screen p-1"
+      className={cn(
+        "mt-4 flex w-full rounded-full border-2 p-1",
+        builtIn ? "border-fairy-pink bg-card" : "border-fairy-hair-2 bg-fairy-screen",
+      )}
     >
-      <Half label={inLabel} on={running} pending={pending} onClick={onIn} tone="in" />
+      <Half
+        label={inLabel}
+        on={running}
+        pending={pending}
+        onClick={onIn}
+        tone={builtIn ? "primary" : "in"}
+      />
       <Half label={outLabel} on={!running} pending={pending} onClick={onOut} tone="out" />
     </div>
   );
@@ -528,7 +528,7 @@ function Half({
   on: boolean;
   pending: boolean;
   onClick: () => void;
-  tone: "in" | "out";
+  tone: "primary" | "in" | "out";
 }) {
   return (
     <button
@@ -539,9 +539,11 @@ function Half({
       className={cn(
         "flex-1 rounded-full px-4 py-3 text-[15px] font-bold whitespace-nowrap transition-colors disabled:opacity-45 sm:text-[16px]",
         on
-          ? tone === "in"
-            ? "bg-fairy-moss text-white"
-            : "bg-fairy-ink text-white"
+          ? tone === "primary"
+            ? "bg-fairy-rose text-white"
+            : tone === "in"
+              ? "bg-fairy-moss text-white"
+              : "bg-fairy-ink text-white"
           : "text-fairy-grey-strong hover:text-fairy-ink",
       )}
     >
@@ -551,9 +553,14 @@ function Half({
 }
 
 /** Says out loud that the big number underneath is a daily one. */
-function TodayLabel() {
+function TodayLabel({ accent = false }: { accent?: boolean }) {
   return (
-    <p className="mb-1 text-[10px] font-bold tracking-[0.13em] text-fairy-grey-strong uppercase">
+    <p
+      className={cn(
+        "mb-1 text-[10px] font-bold tracking-[0.13em] uppercase",
+        accent ? "text-fairy-tint-ink" : "text-fairy-grey-strong",
+      )}
+    >
       Today
     </p>
   );
@@ -852,88 +859,7 @@ function AddTrackerDialog({ roomId }: { roomId: string }) {
         Add log
       </Button>
       {/* Mounted only while open, so it never reopens holding the last entry. */}
-      {open && <AddTrackerForm roomId={roomId} onDone={() => setOpen(false)} />}
+      {open && <AddLogForm roomId={roomId} onDone={() => setOpen(false)} />}
     </>
-  );
-}
-
-function AddTrackerForm({ roomId, onDone }: { roomId: string; onDone: () => void }) {
-  const [name, setName] = useState("");
-  const [mode, setMode] = useState<TrackerMode>("clock");
-  const [error, setError] = useState<string | null>(null);
-  const action = useRepoAction();
-
-  async function submit() {
-    const parsed = parseField(labelSchema, name);
-    if (!parsed.ok) {
-      setError(parsed.message);
-      return;
-    }
-    const done = await action.run(() => repo.addTracker(roomId, { name: parsed.value, mode }));
-    if (done) onDone();
-  }
-
-  return (
-    <Dialog open onOpenChange={(next) => !next && onDone()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-[21px] text-fairy-ink">Add a log</DialogTitle>
-          <DialogDescription>
-            Anything you want counted — the aircon, the washer, a guest staying
-            over.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="grid gap-4">
-          <Field
-            id="tracker-name"
-            label="Log name"
-            value={name}
-            onChange={(v) => {
-              setName(v);
-              setError(null);
-            }}
-            placeholder="e.g. Air conditioner"
-            requirement="required"
-            error={error}
-            autoFocus
-            onEnter={() => void submit()}
-          />
-
-          <div className="grid gap-1.5">
-            <Label
-              htmlFor="tracker-mode"
-              className="text-[12.5px] font-bold tracking-[-0.01em] text-fairy-ink"
-            >
-              How do you log it?
-            </Label>
-            <Select value={mode} onValueChange={(v) => setMode(v as TrackerMode)}>
-              <SelectTrigger id="tracker-mode" className="h-10 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TRACKER_MODES.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {TRACKER_MODE_META[m].label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <ErrorNote>{action.error}</ErrorNote>
-        </div>
-
-        <DialogFooter>
-          <Button variant="ghost" onClick={onDone}>
-            Cancel
-          </Button>
-          <Button disabled={action.pending} onClick={() => void submit()}>
-            <Timer className="size-4" aria-hidden />
-            Add log
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

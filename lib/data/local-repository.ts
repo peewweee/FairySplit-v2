@@ -139,6 +139,7 @@ function normaliseBills(bills: Record<string, Bill>): Record<string, Bill> {
       delete (bill as unknown as { memberDays?: unknown }).memberDays;
     }
     bill.memberHours ??= {};
+    bill.logAmounts ??= {};
     // Appliances predate logs. null is right for an always-on one (it IS
     // "equally"); a metered one keeps pricing from this bill's own usage
     // entries until somebody links it to a log.
@@ -585,6 +586,7 @@ export class LocalRepository implements Repository {
         startsOn: input.startsOn ?? null,
         endsOn: input.endsOn ?? null,
         memberHours,
+        logAmounts: {},
         appliances,
         uses: [],
         otherCharges: [],
@@ -635,6 +637,29 @@ export class LocalRepository implements Repository {
     return mutate((db) => {
       const bill = requireBill(db, billId);
       bill.memberHours[memberId] = hours;
+      return clone(bill);
+    });
+  }
+
+  async setLogAmount(
+    billId: string,
+    trackerId: string,
+    memberId: string,
+    amount: number | null,
+  ): Promise<Bill> {
+    return mutate((db) => {
+      const bill = requireBill(db, billId);
+      bill.logAmounts ??= {};
+      if (amount === null) {
+        delete bill.logAmounts[trackerId]?.[memberId];
+        // Drop the empty shell too, so "is anything overridden?" stays simple.
+        if (Object.keys(bill.logAmounts[trackerId] ?? {}).length === 0) {
+          delete bill.logAmounts[trackerId];
+        }
+      } else {
+        bill.logAmounts[trackerId] ??= {};
+        bill.logAmounts[trackerId][memberId] = amount;
+      }
       return clone(bill);
     });
   }

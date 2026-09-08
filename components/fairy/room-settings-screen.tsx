@@ -261,6 +261,7 @@ function ApplianceTemplatesPanel({ room }: { room: Room }) {
             <ApplianceForm
               kwhRequired={false}
               trackers={trackers.data ?? []}
+              roomId={room.id}
               submitLabel="Add appliance"
               onSubmit={add}
               onCancel={() => setAdding(false)}
@@ -291,6 +292,7 @@ function ApplianceTemplatesPanel({ room }: { room: Room }) {
               }}
               kwhRequired={false}
               trackers={trackers.data ?? []}
+              roomId={room.id}
               submitLabel="Save changes"
               onSubmit={update}
               onCancel={() => setEditing(null)}

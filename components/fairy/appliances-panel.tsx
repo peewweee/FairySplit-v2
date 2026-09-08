@@ -130,6 +130,7 @@ export function AppliancesPanel({ bill, members }: { bill: Bill; members: Member
               submitLabel="Add appliance"
               allowAlwaysOn={daysCovered !== null}
               trackers={trackers.data ?? []}
+              roomId={bill.roomId}
               onSubmit={add}
               onCancel={() => setAdding(false)}
               pending={action.pending}
@@ -159,6 +160,7 @@ export function AppliancesPanel({ bill, members }: { bill: Bill; members: Member
               submitLabel="Save changes"
               allowAlwaysOn={daysCovered !== null}
               trackers={trackers.data ?? []}
+              roomId={bill.roomId}
               onSubmit={update}
               onCancel={() => setEditing(null)}
               pending={action.pending}

@@ -162,6 +162,18 @@ export interface Bill {
    */
   memberHours: Record<string, number | null>;
 
+  /**
+   * Hand-entered amounts that stand in for what a log counted.
+   *
+   * trackerId -> memberId -> amount, in that log's own unit. ABSENT means "use
+   * the log", which is the point of having a clock: you only store a number
+   * here when you disagree with it.
+   *
+   * `memberHours` above is the same idea for the occupancy clock; it predates
+   * this and is read directly by the engine, so it stays where it is.
+   */
+  logAmounts: Record<string, Record<string, number>>;
+
   /** A frozen COPY of the room templates, not a reference (section 5). */
   appliances: BillAppliance[];
   uses: ApplianceUse[];

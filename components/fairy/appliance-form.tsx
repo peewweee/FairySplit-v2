@@ -7,11 +7,9 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { Field } from "@/components/fairy/field";
 import { ErrorNote } from "@/components/fairy/shell-bits";
 import {
@@ -28,6 +26,8 @@ import {
   optionalKwhPerUnitSchema,
 } from "@/lib/forms/numeric";
 import { labelSchema, parseField } from "@/lib/forms/schemas";
+import { AddLogForm } from "@/components/fairy/add-log-dialog";
+import { cn } from "@/lib/utils";
 
 export interface ApplianceDraft {
   label: string;
@@ -41,6 +41,8 @@ export interface ApplianceDraft {
 const EQUALLY = "equally";
 /** Only ever offered to an appliance that is already in this state. */
 const UNLINKED = "unlinked";
+/** Tracked, but the log has not been chosen yet — the dropdown sits empty. */
+const TRACKED = "tracked";
 
 /**
  * The appliance form, shared by room templates and by a bill's frozen copy.
@@ -54,6 +56,7 @@ export function ApplianceForm({
   kwhRequired = true,
   allowAlwaysOn = true,
   trackers = [],
+  roomId,
   submitLabel,
   onSubmit,
   onCancel,
@@ -66,6 +69,8 @@ export function ApplianceForm({
   allowAlwaysOn?: boolean;
   /** The room's logs. Each one becomes a way to charge this appliance. */
   trackers?: Tracker[];
+  /** Enables "Add a log" from inside this form. Without it the link is text. */
+  roomId?: string;
   submitLabel: string;
   onSubmit: (draft: ApplianceDraft) => void;
   onCancel?: () => void;
@@ -85,7 +90,21 @@ export function ApplianceForm({
     return EQUALLY;
   });
 
-  const picked = trackers.find((t) => t.id === choice) ?? null;
+  const [addingLog, setAddingLog] = useState(false);
+  // A log made from inside this form exists before the parent's query has
+  // refetched, so hold on to it — otherwise the dropdown would briefly not
+  // contain the very thing it was just told to select.
+  const [justAdded, setJustAdded] = useState<Tracker | null>(null);
+  const logs =
+    justAdded && !trackers.some((t) => t.id === justAdded.id)
+      ? [...trackers, justAdded]
+      : trackers;
+
+  const picked = logs.find((t) => t.id === choice) ?? null;
+  // "Track based on logs" is chosen the moment the option is ticked, even
+  // before a log is named — that is what leaves the dropdown showing its
+  // prompt instead of quietly picking one for you.
+  const tracked = choice === TRACKED || Boolean(picked);
   const mode: ApplianceMode = picked
     ? applianceModeForTracker(picked.mode)
     : choice === UNLINKED && legacyMode
@@ -97,9 +116,12 @@ export function ApplianceForm({
       ? ""
       : String(initial.kwhPerUnit),
   );
-  const [errors, setErrors] = useState<{ label?: string; kwh?: string }>({});
+  const [errors, setErrors] = useState<{ label?: string; kwh?: string; tracker?: string }>({});
 
   const meta = APPLIANCE_MODE_META[mode];
+  // Until a log is named there is no unit to name either, so the kWh field says
+  // "per unit" rather than claiming a day.
+  const unitLabel = tracked && !picked ? "unit" : meta.unit;
 
   function submit() {
     const parsedLabel = parseField(labelSchema, label);
@@ -107,11 +129,14 @@ export function ApplianceForm({
       kwhRequired ? kwhPerUnitSchema : optionalKwhPerUnitSchema,
       kwh,
     );
-    const next: { label?: string; kwh?: string } = {};
+    const next: { label?: string; kwh?: string; tracker?: string } = {};
     if (!parsedLabel.ok) next.label = parsedLabel.message;
     if (!parsedKwh.ok) next.kwh = parsedKwh.message;
+    // Saving now would store an appliance with nothing to price it from, which
+    // costs zero and looks exactly like one nobody used.
+    if (tracked && !picked) next.tracker = "Pick which log this is charged from.";
     setErrors(next);
-    if (!parsedLabel.ok || !parsedKwh.ok) return;
+    if (!parsedLabel.ok || !parsedKwh.ok || next.tracker) return;
 
     onSubmit({
       label: parsedLabel.value,
@@ -138,54 +163,128 @@ export function ApplianceForm({
         onEnter={submit}
       />
 
-      <div className="grid gap-1.5">
-        <div className="flex items-baseline justify-between gap-2">
-          <Label htmlFor="appliance-mode">
-            How is it charged?
-            <span aria-hidden className="ml-0.5 font-bold text-fairy-danger">
-              *
-            </span>
-          </Label>
+      <div className="grid gap-2">
+        {/* A radiogroup, not checkboxes: the two answers are exclusive, and a
+            reader that announces "checkbox" would suggest you could pick both.
+            The tick square is the look; the semantics stay honest. */}
+        <span
+          id="appliance-charge-label"
+          className="text-[12.5px] font-bold tracking-[-0.01em] text-fairy-ink"
+        >
+          How is it charged?
+          <span aria-hidden className="ml-0.5 font-bold text-fairy-danger">
+            *
+          </span>
+        </span>
+
+        <div
+          role="radiogroup"
+          aria-labelledby="appliance-charge-label"
+          aria-required
+          className="grid gap-1.5"
+        >
+          <ChargeOption
+            checked={choice === EQUALLY}
+            disabled={!allowAlwaysOn}
+            label="Equally"
+            hint={APPLIANCE_MODE_META.always_on.hint}
+            onSelect={() => setChoice(EQUALLY)}
+          />
+
+          <ChargeOption
+            checked={tracked}
+            label="Track based on logs"
+            hint="Charged to whoever logged it, for the dates this bill covers."
+            // Deliberately does NOT choose a log. Picking one silently would
+            // put a number on somebody's bill that nobody asked for.
+            onSelect={() => {
+              setChoice(picked?.id ?? TRACKED);
+              setErrors((e) => ({ ...e, tracker: undefined }));
+            }}
+          />
+
+          {/* Only ever shown to an appliance already in this state — never
+              offered to a new one. Dropping it would silently re-cost a bill
+              that predates logs. */}
+          {legacyMode && (
+            <ChargeOption
+              checked={choice === UNLINKED}
+              label="Logged on this bill only"
+              hint="Keeps the usage entries already on this bill."
+              onSelect={() => setChoice(UNLINKED)}
+            />
+          )}
         </div>
-        <Select value={choice} onValueChange={setChoice}>
-          <SelectTrigger id="appliance-mode" aria-required className="h-10 w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {/* Equally is the only answer that needs no log, so it sits on its
-                own above the rule rather than in the list of logs. */}
-            <SelectItem value={EQUALLY} disabled={!allowAlwaysOn}>
-              <span className="font-bold">Equally</span>
-              <span className="ml-2 rounded-full bg-fairy-tint px-1.5 py-0.5 text-[10px] font-bold text-fairy-tint-ink">
-                Built in
-              </span>
-            </SelectItem>
 
-            {legacyMode && (
-              <SelectItem value={UNLINKED}>Logged on this bill only</SelectItem>
+        {/* The list of logs belongs to the second answer, so it appears with
+            it rather than sitting there greyed out. */}
+        {tracked && (
+          <div className="grid gap-1.5 pl-7">
+            <Select
+              value={picked?.id ?? ""}
+              onValueChange={(value) => {
+                setChoice(value);
+                setErrors((e) => ({ ...e, tracker: undefined }));
+              }}
+            >
+              <SelectTrigger
+                id="appliance-tracker"
+                aria-invalid={Boolean(errors.tracker)}
+                aria-describedby={errors.tracker ? "appliance-tracker-error" : undefined}
+                className="h-10 w-full"
+              >
+                <SelectValue placeholder="Select from your existing logs" />
+              </SelectTrigger>
+              <SelectContent>
+                {logs.map((tracker) => (
+                  <SelectItem key={tracker.id} value={tracker.id}>
+                    {tracker.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.tracker && (
+              <p
+                id="appliance-tracker-error"
+                className="text-[11.5px] font-semibold text-fairy-danger"
+              >
+                {errors.tracker}
+              </p>
             )}
-
-            <SelectSeparator />
-
-            {trackers.map((tracker) => (
-              <SelectItem key={tracker.id} value={tracker.id}>
-                Track based on &lsquo;{tracker.name}&rsquo;
-              </SelectItem>
-            ))}
-
-            <p className="px-2 py-1.5 text-[11px] leading-[1.4] font-medium text-fairy-grey-strong">
-              Want to charge it by something else? Add a log under Your tracking.
+            <p className="text-[11px] leading-[1.4] font-medium text-fairy-grey-strong">
+              Want to charge it by something else?{" "}
+              {roomId ? (
+                <button
+                  type="button"
+                  onClick={() => setAddingLog(true)}
+                  // Not .fs-link: that class pins 12.5px, which would break
+                  // out of this 11px line.
+                  className="cursor-pointer font-bold text-fairy-rose underline decoration-fairy-pink decoration-2 underline-offset-2 hover:text-fairy-tint-ink"
+                >
+                  Add a log
+                </button>
+              ) : (
+                <span className="font-bold">Add a log</span>
+              )}{" "}
+              under Your tracking.
             </p>
-          </SelectContent>
-        </Select>
+          </div>
+        )}
 
-        <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey">
-          {trackerId
-            ? `Charged to whoever logged the ${meta.unitPlural}, from that log.`
-            : choice === UNLINKED
-              ? "Keeps using the usage entries already on this bill."
-              : APPLIANCE_MODE_META.always_on.hint}
-        </p>
+        {addingLog && roomId && (
+          <AddLogForm
+            roomId={roomId}
+            onDone={(created) => {
+              setAddingLog(false);
+              // Straight to the log they just made — that is why they opened it.
+              if (created) {
+                setJustAdded(created);
+                setChoice(created.id);
+                setErrors((e) => ({ ...e, tracker: undefined }));
+              }
+            }}
+          />
+        )}
 
         {!allowAlwaysOn && (
           <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-ember">
@@ -197,14 +296,14 @@ export function ApplianceForm({
 
       <Field
         id="appliance-kwh"
-        label={`Energy per ${meta.unit}`}
+        label={`Energy per ${unitLabel}`}
         value={kwh}
         onChange={(v) => {
           setKwh(v);
           setErrors((e) => ({ ...e, kwh: undefined }));
         }}
         placeholder={mode === "always_on" ? "e.g. 1.2" : "e.g. 0.73"}
-        suffix={`kWh / ${meta.unit}`}
+        suffix={`kWh / ${unitLabel}`}
         inputMode="decimal"
         requirement={kwhRequired ? "required" : "optional"}
         error={errors.kwh}
@@ -351,3 +450,59 @@ function PerMonthConverter({
 }
 
 const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
+
+/**
+ * One answer to "how is it charged?".
+ *
+ * A tick square, because that is the shape the choice wants — but `role="radio"`
+ * inside a radiogroup, because only one answer can be true at a time.
+ */
+function ChargeOption({
+  checked,
+  disabled,
+  label,
+  hint,
+  onSelect,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  label: string;
+  hint: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={onSelect}
+      className={cn(
+        "flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
+        checked
+          ? "border-fairy-pink bg-fairy-tint"
+          : "border-fairy-hair bg-card hover:border-fairy-hair-2",
+        disabled && "cursor-not-allowed opacity-45",
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "mt-px flex size-4 shrink-0 items-center justify-center rounded-[4px] border-2",
+          checked ? "border-fairy-rose bg-fairy-rose text-white" : "border-fairy-hair-2",
+        )}
+      >
+        {checked && <Check className="size-3" strokeWidth={3} />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[13px] font-bold tracking-[-0.01em] text-fairy-ink">
+          {label}
+        </span>
+        <span className="mt-0.5 block text-[11.5px] leading-[1.45] font-medium text-fairy-grey-strong">
+          {hint}
+        </span>
+      </span>
+    </button>
+  );
+}
+

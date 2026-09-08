@@ -1,5 +1,5 @@
 import { applyRoundUp, computeBill, type BillInput, type BillResult } from "@/lib/billing/engine";
-import { coverageDays, memberDaysFor } from "@/lib/billing/occupancy";
+import { HOURS_PER_DAY, coverageDays } from "@/lib/billing/occupancy";
 import { amountForMemberInRange } from "@/lib/tracking/elapsed";
 import type { ApplianceUse, Bill, Member, Tracker } from "@/lib/data/types";
 
@@ -15,11 +15,59 @@ export function toBillInput(bill: Bill, members: Member[], trackers: Tracker[]):
     billedCentavos: applyRoundUp(bill.totalCentavos, bill.roundUpToPeso),
     rateMillicents: bill.rateMillicents,
     daysCovered: coverageDays(bill),
-    members: memberDaysFor(bill, members),
+    members: resolvedMemberDays(bill, members, trackers),
     appliances: bill.appliances,
     uses: [...bill.uses, ...usesFromTrackers(bill, members, trackers)],
     otherCharges: bill.otherCharges,
   };
+}
+
+/**
+ * The occupancy clock a room's day counts come from, if it has one.
+ */
+export function occupancyTracker(trackers: Tracker[]): Tracker | null {
+  return trackers.find((t) => t.builtIn) ?? null;
+}
+
+/**
+ * What one person logged against a tracker for this bill — the number the UI
+ * shows and the engine bills from.
+ *
+ * A hand-entered figure wins; otherwise the log is counted over the bill's
+ * dates. That is the whole contract of "editable, but auto by default": you
+ * only store a number when you disagree with the clock.
+ */
+export function amountFor(
+  bill: Bill,
+  tracker: Tracker,
+  memberId: string,
+  override: number | null,
+): number {
+  if (override !== null) return override;
+  const window = billWindow(bill);
+  if (!window) return 0;
+  return amountForMemberInRange(tracker, memberId, window.start, window.end);
+}
+
+/** The stored override for one person on one log, or null for "follow the log". */
+export function overrideFor(bill: Bill, trackerId: string, memberId: string): number | null {
+  return bill.logAmounts?.[trackerId]?.[memberId] ?? null;
+}
+
+/**
+ * Days per person, for the split's weighting.
+ *
+ * `memberHours` is the occupancy override; when it is null the hours come from
+ * the occupancy clock over this bill's dates. Before logs existed a null here
+ * meant zero, which is the same answer for a room whose clock has never run.
+ */
+export function resolvedMemberDays(bill: Bill, members: Member[], trackers: Tracker[]) {
+  const clock = occupancyTracker(trackers);
+  return members.map((member) => {
+    const stored = bill.memberHours[member.id] ?? null;
+    const hours = stored ?? (clock ? amountFor(bill, clock, member.id, null) : 0);
+    return { id: member.id, days: hours / HOURS_PER_DAY };
+  });
 }
 
 /**
@@ -74,7 +122,9 @@ export function usesFromTrackers(bill: Bill, members: Member[], trackers: Tracke
     if (!tracker) continue;
 
     for (const member of members) {
-      const quantity = amountForMemberInRange(tracker, member.id, window.start, window.end);
+      const override = overrideFor(bill, tracker.id, member.id);
+      const quantity =
+        override ?? amountForMemberInRange(tracker, member.id, window.start, window.end);
       if (quantity <= 0) continue;
       out.push({
         // Stable and derived, so re-rendering never renumbers a row.

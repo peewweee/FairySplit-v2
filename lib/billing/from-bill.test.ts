@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { billWindow, splitBill, toBillInput, trackerProblems } from "@/lib/billing/from-bill";
+import {
+  billWindow,
+  resolvedMemberDays,
+  splitBill,
+  toBillInput,
+  trackerProblems,
+} from "@/lib/billing/from-bill";
 import { daysBetween, memberDaysFor, totalPersonDays } from "@/lib/billing/occupancy";
 import { formatCentavos, pesosToMillicents } from "@/lib/billing/money";
 import type { Bill, Member, Tracker } from "@/lib/data/types";
@@ -23,6 +29,7 @@ const bill = (over: Partial<Bill> = {}): Bill => ({
   startsOn: "2026-08-01",
   endsOn: "2026-08-30",
   memberHours: { ANA: 480, BEN: 240, CY: 0 },
+  logAmounts: {},
   appliances: [],
   uses: [],
   otherCharges: [],
@@ -294,5 +301,80 @@ describe("usage taken from a log", () => {
       [airconTracker([clockRun("ANA", 5, 10, 5, 12)])],
     );
     expect(input.uses).toEqual([]);
+  });
+});
+
+describe("hand-entered amounts", () => {
+  const airconBill = (over: Partial<Bill> = {}) =>
+    bill({ rateMillicents: RATE_10_PESOS, appliances: [aircon("T-AC")], ...over });
+
+  it("a typed figure replaces what the log counted", () => {
+    const { result } = splitBill(
+      // Ana logged 2 hours, but says it was really 5.
+      airconBill({ logAmounts: { "T-AC": { ANA: 5 } } }),
+      members,
+      [airconTracker([clockRun("ANA", 5, 10, 5, 12)])],
+    );
+    expect(result!.rows.find((r) => r.memberId === "ANA")!.meteredCentavos).toBe(5_000);
+  });
+
+  it("only overrides the person it names", () => {
+    const { result } = splitBill(
+      airconBill({ logAmounts: { "T-AC": { ANA: 5 } } }),
+      members,
+      [airconTracker([clockRun("ANA", 5, 10, 5, 12), clockRun("BEN", 6, 9, 6, 10)])],
+    );
+    // Ben keeps his logged hour.
+    expect(result!.rows.find((r) => r.memberId === "BEN")!.meteredCentavos).toBe(1_000);
+  });
+
+  it("an override of zero means zero, not 'go back to the log'", () => {
+    const { result } = splitBill(
+      airconBill({ logAmounts: { "T-AC": { ANA: 0 } } }),
+      members,
+      [airconTracker([clockRun("ANA", 5, 10, 5, 12)])],
+    );
+    expect(result!.rows.find((r) => r.memberId === "ANA")!.meteredCentavos).toBe(0);
+  });
+
+  it("still reconciles once a figure is overridden", () => {
+    const b = airconBill({ logAmounts: { "T-AC": { ANA: 5 } } });
+    const { result } = splitBill(b, members, [
+      airconTracker([clockRun("ANA", 5, 10, 5, 12)]),
+    ]);
+    expect(result!.rows.reduce((acc, r) => acc + r.totalCentavos, 0)).toBe(b.totalCentavos);
+  });
+});
+
+describe("occupancy counted from the clock", () => {
+  const clock = (entries: ReturnType<typeof clockRun>[]): Tracker => ({
+    ...airconTracker(entries),
+    id: "T-HOURS",
+    name: "Hours in the unit",
+    builtIn: true,
+  });
+
+  it("falls back to the occupancy clock when no hours are stored", () => {
+    // 48 hours inside the bill's dates = 2 days.
+    const days = resolvedMemberDays(
+      bill({ memberHours: {} }),
+      members,
+      [clock([clockRun("ANA", 5, 0, 7, 0)])],
+    );
+    expect(days.find((d) => d.id === "ANA")!.days).toBe(2);
+  });
+
+  it("a stored figure still wins over the clock", () => {
+    const days = resolvedMemberDays(
+      bill({ memberHours: { ANA: 240 } }),
+      members,
+      [clock([clockRun("ANA", 5, 0, 7, 0)])],
+    );
+    expect(days.find((d) => d.id === "ANA")!.days).toBe(10);
+  });
+
+  it("is zero for a room whose clock has never run", () => {
+    const days = resolvedMemberDays(bill({ memberHours: {} }), members, [clock([])]);
+    expect(days.every((d) => d.days === 0)).toBe(true);
   });
 });

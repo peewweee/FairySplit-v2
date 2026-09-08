@@ -2,8 +2,8 @@
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatCentavos } from "@/lib/billing/money";
-import type { BillResult } from "@/lib/billing/engine";
-import type { Member } from "@/lib/data";
+import type { BillResult, ShareRow } from "@/lib/billing/engine";
+import type { Bill, Member, Tracker } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,16 +12,82 @@ import { cn } from "@/lib/utils";
  * surface, no decoration at all, tabular figures, and a total row that visibly
  * equals the bill.
  *
- * Columns that are entirely zero are hidden, so a water bill shows three
+ * Columns that are entirely zero are hidden, so a water bill shows two money
  * columns instead of six.
  */
+interface Column {
+  key: string;
+  label: string;
+  valueOf: (row: ShareRow) => number;
+}
+
+/**
+ * The money columns: one per log this bill draws on, then whatever is not a
+ * log at all.
+ *
+ * Every column is pesos — the day counts moved to the logs summary above. The
+ * set is built so the columns always add up to what somebody owes; that is why
+ * the last two exist, and why nothing is dropped just for being awkward.
+ */
+export function costColumns(bill: Bill, trackers: Tracker[], result: BillResult): Column[] {
+  const columns: Column[] = [];
+
+  // The occupancy clock IS the shared portion: it is what the leftover is
+  // weighted by, so it leads rather than sitting under a separate heading.
+  const clock = trackers.find((t) => t.builtIn);
+  columns.push({
+    key: "shared",
+    label: clock?.name ?? "Shared",
+    valueOf: (row) => row.sharedCentavos,
+  });
+
+  for (const tracker of trackers) {
+    if (tracker.builtIn) continue;
+    const ids = bill.appliances.filter((a) => a.trackerId === tracker.id).map((a) => a.id);
+    if (ids.length === 0) continue;
+    columns.push({
+      key: tracker.id,
+      label: tracker.name,
+      valueOf: (row) => ids.reduce((acc, id) => acc + (row.breakdown[id] ?? 0), 0),
+    });
+  }
+
+  // Appliances answering "Equally" are not logged by anyone, so they have no
+  // column of their own above.
+  if (result.rows.some((r) => r.fixedCentavos !== 0)) {
+    columns.push({ key: "fixed", label: "Shared equally", valueOf: (row) => row.fixedCentavos });
+  }
+
+  // Usage on an appliance no log feeds — a record from before logs existed.
+  // Without this the columns would quietly fail to reach the Owes figure.
+  const logged = (row: ShareRow) =>
+    columns.filter((c) => c.key !== "shared" && c.key !== "fixed").reduce((a, c) => a + c.valueOf(row), 0);
+  if (result.rows.some((r) => r.meteredCentavos - logged(r) !== 0)) {
+    columns.push({
+      key: "unlogged",
+      label: "Unlinked usage",
+      valueOf: (row) => row.meteredCentavos - logged(row),
+    });
+  }
+
+  if (result.rows.some((r) => r.otherCentavos !== 0)) {
+    columns.push({ key: "other", label: "Other", valueOf: (row) => row.otherCentavos });
+  }
+
+  return columns;
+}
+
 export function ShareTable({
+  bill,
+  trackers,
   result,
   members,
   billedCentavos,
   paidMemberIds,
   onTogglePaid,
 }: {
+  bill: Bill;
+  trackers: Tracker[];
   result: BillResult;
   members: Member[];
   billedCentavos: number;
@@ -29,15 +95,10 @@ export function ShareTable({
   onTogglePaid?: (memberId: string, paid: boolean) => void;
 }) {
   const nameOf = new Map(members.map((m) => [m.id, m.name]));
-
-  const showFixed = result.rows.some((r) => r.fixedCentavos !== 0);
-  const showMetered = result.rows.some((r) => r.meteredCentavos !== 0);
-  const showOther = result.rows.some((r) => r.otherCentavos !== 0);
+  const columns = costColumns(bill, trackers, result);
   const showPaid = Boolean(onTogglePaid);
 
-  const column = (
-    key: "sharedCentavos" | "fixedCentavos" | "meteredCentavos" | "otherCentavos",
-  ) => result.rows.reduce((acc, r) => acc + r[key], 0);
+  const totalOf = (column: Column) => result.rows.reduce((acc, r) => acc + column.valueOf(r), 0);
 
   const grand = result.rows.reduce((acc, r) => acc + r.totalCentavos, 0);
   const reconciles = grand === billedCentavos;
@@ -48,11 +109,11 @@ export function ShareTable({
         <thead>
           <tr className="border-b border-fairy-hair-2">
             <Th>Person</Th>
-            <Th right>Days</Th>
-            <Th right>Shared</Th>
-            {showFixed && <Th right>Always-on</Th>}
-            {showMetered && <Th right>Usage</Th>}
-            {showOther && <Th right>Other</Th>}
+            {columns.map((column) => (
+              <Th key={column.key} right>
+                {column.label}
+              </Th>
+            ))}
             <Th right emphasis>
               Owes
             </Th>
@@ -68,13 +129,9 @@ export function ShareTable({
                 <Td className="text-[13.5px] font-bold tracking-[-0.02em] text-fairy-ink">
                   {nameOf.get(r.memberId) ?? "Someone"}
                 </Td>
-                <Td right className="text-fairy-grey">
-                  {r.days}
-                </Td>
-                <Money value={r.sharedCentavos} />
-                {showFixed && <Money value={r.fixedCentavos} />}
-                {showMetered && <Money value={r.meteredCentavos} />}
-                {showOther && <Money value={r.otherCentavos} />}
+                {columns.map((column) => (
+                  <Money key={column.key} value={column.valueOf(r)} />
+                ))}
                 <Td
                   right
                   className={cn(
@@ -86,12 +143,17 @@ export function ShareTable({
                 </Td>
                 {showPaid && (
                   <Td right>
-                    <Checkbox
-                      checked={paid}
-                      onCheckedChange={(next) => onTogglePaid?.(r.memberId, next === true)}
-                      aria-label={`Mark ${nameOf.get(r.memberId) ?? "this person"} as paid`}
-                      className="data-[state=checked]:border-fairy-moss data-[state=checked]:bg-fairy-moss data-[state=checked]:text-white"
-                    />
+                    {/* The box is display:flex, so the cell's text-align cannot
+                        move it — it needs a flex parent to sit under the
+                        right-aligned "Paid" heading. */}
+                    <span className="flex justify-end">
+                      <Checkbox
+                        checked={paid}
+                        onCheckedChange={(next) => onTogglePaid?.(r.memberId, next === true)}
+                        aria-label={`Mark ${nameOf.get(r.memberId) ?? "this person"} as paid`}
+                        className="data-[state=checked]:border-fairy-moss data-[state=checked]:bg-fairy-moss data-[state=checked]:text-white"
+                      />
+                    </span>
                   </Td>
                 )}
               </tr>
@@ -104,13 +166,9 @@ export function ShareTable({
             <Td className="text-[13.5px] font-extrabold tracking-[-0.02em] text-fairy-ink">
               Total
             </Td>
-            <Td right className="text-fairy-grey">
-              {result.rows.reduce((acc, r) => acc + r.days, 0)}
-            </Td>
-            <Money value={column("sharedCentavos")} strong />
-            {showFixed && <Money value={column("fixedCentavos")} strong />}
-            {showMetered && <Money value={column("meteredCentavos")} strong />}
-            {showOther && <Money value={column("otherCentavos")} strong />}
+            {columns.map((column) => (
+              <Money key={column.key} value={totalOf(column)} strong />
+            ))}
             <Td
               right
               className={cn(

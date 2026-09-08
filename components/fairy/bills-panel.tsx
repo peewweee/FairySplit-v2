@@ -114,7 +114,8 @@ function BillRow({
 }) {
   const [editing, setEditing] = useState(false);
   const billed = applyRoundUp(bill.totalCentavos, bill.roundUpToPeso);
-  cons
+  const mine = me ? myLine(bill, members, me, trackers) : null;
+
   return (
     <div className="relative border border-fairy-hair bg-card px-3.5 py-3 transition-colors hover:bg-fairy-screen">
       <Link

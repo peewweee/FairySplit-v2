@@ -435,6 +435,7 @@ export function BillDialog({
                 onChange={setAppliances}
                 allowAlwaysOn={covered !== null}
                 trackers={trackers.data ?? []}
+                roomId={roomId}
               />
             </CollapsibleSection>
           )}
@@ -526,11 +527,13 @@ function ApplianceDrafts({
   onChange,
   allowAlwaysOn,
   trackers,
+  roomId,
 }: {
   drafts: DraftAppliance[];
   onChange: (next: DraftAppliance[]) => void;
   allowAlwaysOn: boolean;
   trackers: Tracker[];
+  roomId: string;
 }) {
   const [adding, setAdding] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -609,6 +612,7 @@ function ApplianceDrafts({
             }
             allowAlwaysOn={allowAlwaysOn}
             trackers={trackers}
+            roomId={roomId}
             submitLabel={editingDraft ? "Update appliance" : "Add appliance"}
             onSubmit={upsert}
             onCancel={() => {
