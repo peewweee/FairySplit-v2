@@ -12,6 +12,7 @@ import type {
 } from "@/lib/data/types";
 import { OCCUPANCY_TRACKER_NAME } from "@/lib/data/types";
 import { HOURS_PER_DAY } from "@/lib/billing/occupancy";
+import { HISTORY_DAYS } from "@/lib/tracking/elapsed";
 import {
   RepositoryError,
   type ApplianceInput,
@@ -161,6 +162,26 @@ function normaliseBills(bills: Record<string, Bill>): Record<string, Bill> {
  * They carry a participant set now, so an entry can be charged to several
  * people. An old entry becomes a set of one, which costs exactly what it did.
  */
+/**
+ * Forget entries older than `HISTORY_DAYS`.
+ *
+ * Applied on READ, in memory, so nothing older is ever shown — and because
+ * every write goes through `mutate`, which reads first, the trimmed shape is
+ * what gets persisted on the next write. A read that wrote for itself would
+ * notify every open screen and be read again, which is a loop.
+ */
+function pruneOldEntries(db: FairyDb): void {
+  const cutoff = Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000;
+  for (const tracker of Object.values(db.trackers)) {
+    tracker.entries = (tracker.entries ?? []).filter((entry) => {
+      // Date it by when it happened, not when the row was written: a run typed
+      // in later still belongs to the night it covers.
+      const at = Date.parse(entry.endedAt ?? entry.startedAt ?? entry.createdAt);
+      return !Number.isFinite(at) || at >= cutoff;
+    });
+  }
+}
+
 function normaliseLogEntries(db: FairyDb): void {
   for (const tracker of Object.values(db.trackers)) {
     tracker.runningWith ??= {};
@@ -211,6 +232,7 @@ function readDb(): FairyDb {
       }
       normaliseTrackerOrder(db);
       normaliseLogEntries(db);
+      pruneOldEntries(db);
       return db;
     }
     const legacy = window.localStorage.getItem(LEGACY_KEY_V1);
@@ -1001,6 +1023,33 @@ export class LocalRepository implements Repository {
         startedAt,
         endedAt,
         createdAt: new Date().toISOString(),
+      });
+      return clone(tracker);
+    });
+  }
+
+  async addClockEntries(
+    trackerId: string,
+    spans: { startedAt: string; endedAt: string; participantIds: string[] }[],
+  ): Promise<Tracker> {
+    return mutate((db) => {
+      const tracker = requireTracker(db, trackerId);
+      if (spans.some((span) => span.participantIds.length === 0)) {
+        throw new RepositoryError("Every entry needs at least one person it is charged to.");
+      }
+      // Validate every span BEFORE writing any: half a batch would leave the
+      // log in a state nobody asked for.
+      const hours = spans.map((span) => spanHours(span.startedAt, span.endedAt));
+      const now = new Date().toISOString();
+      spans.forEach((span, i) => {
+        tracker.entries.push({
+          id: newId(),
+          participantIds: [...span.participantIds],
+          quantity: hours[i],
+          startedAt: span.startedAt,
+          endedAt: span.endedAt,
+          createdAt: now,
+        });
       });
       return clone(tracker);
     });

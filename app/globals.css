@@ -322,3 +322,36 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* -- printing a bill ------------------------------------------------------ *
+ * "Save as PDF" is the browser's own print-to-PDF, so printing has to leave
+ * only the sheet on the page. visibility rather than display: display:none on
+ * an ancestor would take the sheet with it, however it is marked.
+ * ------------------------------------------------------------------------- */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  [data-print-sheet],
+  [data-print-sheet] * {
+    visibility: visible;
+  }
+
+  [data-print-sheet] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+  }
+
+  /* Anything that only makes sense to a pointer. */
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  @page {
+    margin: 16mm;
+  }
+}

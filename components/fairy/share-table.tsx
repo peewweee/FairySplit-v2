@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * Columns that are entirely zero are hidden, so a water bill shows two money
  * columns instead of six.
  */
-interface Column {
+export interface Column {
   key: string;
   label: string;
   valueOf: (row: ShareRow) => number;

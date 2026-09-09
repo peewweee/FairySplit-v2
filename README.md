@@ -65,13 +65,61 @@ a shared run into a solo one.
 ### Entries
 
 Every entry is editable and deletable, and any log can take one typed in after
-the fact — a clock only records what somebody remembered to press.
+the fact — a clock only records what somebody remembered to press. Deleting one
+asks first, in place; the hours simply stop counting and do not come back.
 
 - A **clock run** is edited as a span: a date and two times, with the hours
   derived from them. An end at or before the start rolls to the next day, because
   "in at ten, out at eight" is the ordinary shape of a night at home.
 - A **manual entry** is edited as a date and an amount. The date decides which
   bill it lands on.
+
+A date can only name a day the log will actually keep: nothing in the future,
+nothing past the retention window. `min`/`max` steer the picker and every save
+checks again, because a date typed straight in ignores them.
+
+### Catching up on several days
+
+Clock logs add entries through a calendar you can pick **several dates** from at
+once — clocking in is a per-day habit, so catching up is usually "I was here all
+of these days". Times default to the whole day (00:00–23:59).
+
+Each picked date is **frozen with the times and people current when it was
+picked**. Changing the fields afterwards aims at the *next* date, not the ones
+already listed — otherwise there would be no way to record two days that ran
+differently. Little boxes under the calendar show what is about to be saved:
+date, time range, and (on a shared log) who it is charged to. The whole batch is
+one write, and every span is validated before any of it is stored.
+
+The one exception is before the calendar is touched: the auto-selected today
+still follows the fields, because at that point the form is plainly just "one
+entry, today".
+
+Manual logs keep the single-date form — they have no times to give a day a
+shape.
+
+### What a card shows, and where the rest is
+
+A card's toggle reads *"3 entries today"*, and opens **today's entries only**, to
+match the counter above it. It filters by what *contributes* to today rather than
+what is stamped today, so a run from 10pm to 2am appears on both days.
+
+Everything else lives on the **logs history** page: a tab per log, entries
+grouped by the day they happened, and the same editable row as on the card — so
+an entry is edited, deleted or added the same way wherever you find it. Two ways
+in: a *Logs history* button in the panel's header, and, under an opened card's
+entries, a *See all logs* link that lands on that log's own tab.
+
+### Retention
+
+Only the last **120 days** are kept; anything older is dropped and cannot be
+brought back. The pruning happens on READ, in memory, so nothing older is ever
+shown — and because every write reads first, the trimmed shape is what gets
+persisted on the next write. A read that wrote for itself would notify every
+open screen and be read again, which is a loop.
+
+`HISTORY_DAYS` in `lib/tracking/elapsed.ts` is the one place that number lives:
+it bounds the pruning, the date pickers and the note on the history page.
 
 ---
 
@@ -123,15 +171,18 @@ split. Everything else is optional and only makes it more precise.
 ## Screens
 
 ```
-/                                 rooms
+/                                 rooms  ("/?join=CODE" opens the join dialog)
 /rooms/[roomId]                   Your tracking (the logs) + Bills
-/rooms/[roomId]/settings          name, join code, appliance defaults, delete
+/rooms/[roomId]/logs              logs history: a tab per log
+/rooms/[roomId]/settings          name, join code, people, delete
 /rooms/[roomId]/bills/[billId]    the bill: your logs summary + the share table
 ```
 
 **The room screen** leads with *Your tracking* — your clocks and logs, the
 built-in one filled blush so it is distinguishable from the rest — then the
-list of bills.
+list of bills. A bill in that list shows your hours and your share, and opens by
+being clicked (a › says so). The hours come from the same figure the bill's own
+summary uses, so the two can never quote different numbers for the same stay.
 
 **The bill screen** is: the hero (name, amount, dates, and a ⚙ menu holding Edit
 and Delete), *Your logs covered in this bill*, then the share table. Appliances
@@ -145,7 +196,31 @@ weighted by and hours is what the clock recorded.
 
 The share table is all money: one column per log, plus "Shared equally" and
 "Unlinked usage" when those exist, so the columns always add up to what somebody
-owes.
+owes. *Edit log entries* on a summary row opens that log's history tab.
+
+### Sharing a split
+
+A **Share** button above the table offers two ways out, and neither needs a
+dependency:
+
+- **Download image** — a PNG drawn on a canvas from the same columns the table
+  renders. Not a screenshot: no UI chrome, sharp at 2×, and the same whatever the
+  page is scrolled to.
+- **Save as PDF** — the browser's own print-to-PDF. The table sits in a
+  `[data-print-sheet]` wrapper and the print stylesheet hides everything else, so
+  what prints is the heading and the table.
+
+A hand-rolled PDF was the obvious alternative and is the wrong one: the standard
+PDF fonts have **no glyph for ₱**, so a peso table would come out mangled. The
+browser's engine uses the real font. On a phone, where `navigator.canShare`
+takes files, a third option sends the image straight to another app.
+
+### Getting somebody into a room
+
+The People panel invites rather than filing a name: a join code, and a whole
+invite message ready to paste, carrying a `/?join=CODE` link that opens the app
+with the code filled in. Both say plainly that neither reaches another device
+yet — see the seam below.
 
 ---
 
@@ -163,11 +238,13 @@ lib/
                     date window, and the usage its logs supply
   tracking/
     elapsed.ts      pure: turning a running clock into a number. `now` is passed
-                    in, never read from the system.
+                    in, never read from the system. Also holds HISTORY_DAYS,
+                    the one place the retention window is written down.
   data/
     types.ts        the domain model
     repository.ts   the interface every screen reads and writes through
-    local-repository.ts   localStorage implementation (this phase)
+    local-repository.ts   localStorage implementation (this phase); also
+                    normalises and prunes on read
     index.ts        exports the active implementation — one line to swap
     hooks.ts        useRepoQuery / useRepoAction, so components just await
   forms/
@@ -212,7 +289,10 @@ phone. The join dialog and the room settings both say so.
 ### Stored shape and its migrations
 
 `fairysplit:v2` in localStorage. Records written by earlier versions are
-normalised on read, never in a destructive rewrite:
+normalised on read, never in a destructive rewrite — and a read never *writes*.
+It did once, and the write notified every open screen, which read again: a loop
+that ended in "Maximum call stack size exceeded". Reads fix their copy in memory;
+the next write persists the fixed shape, because every write reads first.
 
 | Was | Is now |
 |---|---|
@@ -221,6 +301,9 @@ normalised on read, never in a destructive rewrite:
 | appliances with no `trackerId` | `null` — "equally" for an always-on one, and a metered one keeps pricing from its own entries |
 | trackers with no `sortOrder` | derived from the order they already had on screen |
 | entries with `memberId` | `participantIds: [memberId]`, which costs exactly what it did |
+| trackers with no `runningWith` | `{}` — a run already going is charged to whoever started it |
+| bills with no `logAmounts` | `{}` — nothing overridden, so every log is in charge |
+| entries older than `HISTORY_DAYS` | dropped |
 
 ### Design system
 
@@ -309,7 +392,16 @@ tests, including the property run.
   their quantities from it.
 - Per-bill overrides, with the log as the default.
 - Bill kinds (electricity / water / other), which decide what fields exist.
-- The logs summary on the bill screen, with the ⓘ formulas.
+- The logs summary on the bill screen, with the ⓘ formulas, and a link
+  straight to the log a figure came from.
+- **A logs history page**, a tab per log, with the same editable row as the
+  card — and a 120-day retention window with a note saying so.
+- **Multi-date picking** for clock logs, on a calendar built rather than
+  installed. Each date keeps the times and people it was picked with.
+- **Deleting an entry asks first**, in place.
+- **Sharing a split**: a PNG drawn on a canvas, the browser's print-to-PDF, and
+  the OS share sheet where a phone offers one.
+- Invites: a join code and a whole invite message, carrying a `/?join=CODE` link.
 
 **Removed**
 
@@ -321,11 +413,38 @@ tests, including the property run.
 - The reconciliation line and "How this was split", whose content is now in the
   ⓘ icons.
 - The Days column on the share table, replaced by a money column per log.
+- **Appliance defaults** in room settings. An appliance belongs to the bill it
+  is on; a room-wide default was a second place to keep the same fact.
+- **The add-a-name field** in People, replaced by inviting — which, with no
+  backend, cannot yet reach another device. See *Known limits*.
+- The pencil on a logs-summary row and the *Edit* button on a bill in the list.
+  An entry is edited where it is recorded, and a bill opens by being clicked.
+- The "charged to" tick boxes on *Hours in the unit*. Only one person can be in
+  the unit as you, so there was nothing to tick.
 
 **Not in this phase**
 
 Supabase, any database, auth, payment processing, notifications, email. Nothing
 here blocks them — see the seam above.
+
+### Known limits
+
+Written down rather than papered over — each is a consequence of having no
+backend yet, or a rough edge worth naming.
+
+- **A room cannot gain a member on this device.** Removing the add-a-name field
+  left inviting as the only way in, and an invite has nowhere to travel: the
+  code and the link both resolve against *this* browser's storage. Until there
+  is a backend, a room's people are whoever it was created with. Putting a name
+  field back is a small change if that turns out to matter sooner.
+- **Retention is browser-side.** Nothing is running while the app is closed, so
+  entries past 120 days disappear the next time the app is opened — not on the
+  day they expire. They are never *shown* past the window, so the effect is only
+  that the stored copy lingers.
+- **An added clock log shows two "Charged to" pickers** while its add-entry form
+  is open: the card's own, which decides who a live run is charged to, and the
+  form's, which decides who the typed entry is charged to. They are genuinely
+  two different questions, but the screen does not say so.
 
 ### Unmounted files
 

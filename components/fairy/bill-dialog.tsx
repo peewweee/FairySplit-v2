@@ -269,8 +269,7 @@ export function BillDialog({
             <p className="text-[11.5px] font-semibold text-fairy-danger">{errors.name}</p>
           )}
           <DialogDescription>
-            A total and one person is all it takes. Everything else just makes the
-            split more precise.
+            Customize your bill and make the split more precise.
           </DialogDescription>
         </DialogHeader>
 
@@ -327,7 +326,7 @@ export function BillDialog({
               <p className="mt-0.5 text-[11.5px] font-medium text-fairy-grey">
                 {roundedPreview !== null && parsedTotalPreview.ok
                   ? `Collect ${formatCentavos(roundedPreview)} instead of ${formatCentavos(parsedTotalPreview.value)}.`
-                  : "Collect whole pesos so nobody owes half a centavo."}
+                  : "Collect whole pesos so nobody owes a centavo."}
               </p>
             </div>
             <Switch id="bill-roundup" checked={roundUp} onCheckedChange={setRoundUp} />
@@ -416,7 +415,7 @@ export function BillDialog({
           {/* Section 3: not greyed out, not empty — not rendered. */}
           {!meta.itemizable && appliances.length > 0 && (
             <p className="border-l-[2.5px] border-fairy-ember bg-fairy-ember-tint px-3.5 py-2.5 text-[11.5px] font-semibold text-fairy-ember">
-              A {meta.label.toLowerCase()} bill has no appliances to itemize.
+              A non-electricity (water or others) bill has no appliances to itemize.
               Saving discards the {appliances.length}{" "}
               {appliances.length === 1 ? "appliance" : "appliances"} on this bill,
               and any usage logged against {appliances.length === 1 ? "it" : "them"}.

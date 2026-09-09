@@ -42,13 +42,13 @@ export const BILL_KIND_META: Record<
   },
   water: {
     label: "Water",
-    hint: "Split by the days each person stayed. No appliances to itemize.",
+    hint: "Split by the hours each person stayed.",
     itemizable: false,
     datesRequired: true,
   },
   other: {
     label: "Others",
-    hint: "Anything else — internet, dues, a one-off. Dates are optional.",
+    hint: "Anything else (internet, dues, a one-off). Dates are optional.",
     itemizable: false,
     datesRequired: false,
   },

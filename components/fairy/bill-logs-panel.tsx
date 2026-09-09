@@ -144,9 +144,10 @@ function LogRow({ bill, me, line }: { bill: Bill; me: Member; line: LogLine }) {
         )}
 
         {/* Entries are edited where they are recorded, so a figure has one
-            source rather than two that could disagree. */}
+            source rather than two that could disagree — and straight to THIS
+            log's tab, since that is the one the figure came from. */}
         <Link
-          href={`/rooms/${bill.roomId}#tracking-heading`}
+          href={`/rooms/${bill.roomId}/logs?log=${line.tracker.id}`}
           className="inline-flex items-center gap-1 text-[10.5px] font-bold text-fairy-rose underline decoration-fairy-pink decoration-2 underline-offset-2"
         >
           <Pencil className="size-3" aria-hidden />

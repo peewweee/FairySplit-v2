@@ -11,6 +11,16 @@ import type { LogEntry, Tracker, TrackerMode } from "@/lib/data/types";
 export const MS_PER_HOUR = 3_600_000;
 
 /**
+ * How much log history is kept. Anything older is dropped.
+ *
+ * Deliberately longer than any billing period, so a bill can always still reach
+ * the entries it covers; short enough that the store does not grow forever. It
+ * also bounds what a date field will accept — there is no point recording a day
+ * that will be forgotten before anyone reads it.
+ */
+export const HISTORY_DAYS = 120;
+
+/**
  * Hours from an ISO instant to a millisecond timestamp.
  *
  * Never negative. A device whose clock jumps backwards — a manual change, a

@@ -191,6 +191,16 @@ export interface Repository {
     startedAt: string,
     endedAt: string,
   ): Promise<Tracker>;
+  /**
+   * Several runs at once — one write, so the screen refreshes once.
+   *
+   * Each span carries its OWN participants: a batch typed in at one sitting can
+   * still be several days charged to different people.
+   */
+  addClockEntries(
+    trackerId: string,
+    spans: { startedAt: string; endedAt: string; participantIds: string[] }[],
+  ): Promise<Tracker>;
   /** Change what an entry recorded, when it ran, or who it is charged to. */
   updateLogEntry(
     trackerId: string,

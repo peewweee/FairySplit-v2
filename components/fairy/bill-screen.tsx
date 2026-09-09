@@ -31,6 +31,7 @@ import {
 import { applyRoundUp } from "@/lib/billing/engine";
 import { splitBill, trackerProblems } from "@/lib/billing/from-bill";
 import { BillLogsPanel } from "@/components/fairy/bill-logs-panel";
+import { BillExportButton } from "@/components/fairy/bill-export";
 import { findMe } from "@/components/fairy/bills-panel";
 import { formatCentavos } from "@/lib/billing/money";
 import { repo, type Bill, type Member, type Room } from "@/lib/data";
@@ -131,17 +132,42 @@ function BillBody({
 
           {result ? (
             <>
-              <ShareTable
-                bill={bill}
-                trackers={trackers.data ?? []}
-                result={result}
-                members={members}
-                billedCentavos={billed}
-                paidMemberIds={bill.paidMemberIds}
-                onTogglePaid={(memberId, paid) =>
-                  void action.run(() => repo.setPaid(bill.id, memberId, paid))
-                }
-              />
+              {/* The printable sheet: a heading the page does not otherwise
+                  need, then the table. Print CSS shows only this. */}
+              <div data-print-sheet>
+                <div className="mb-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+                  <div className="min-w-0">
+                    <p className="hidden text-[18px] font-extrabold tracking-[-0.03em] text-fairy-ink print:block">
+                      {bill.name}
+                    </p>
+                    <p className="hidden text-[12px] font-medium text-fairy-grey-strong print:block">
+                      {room.name} · {describeCoverage(bill)} · {formatCentavos(billed)}
+                    </p>
+                  </div>
+                  <div data-print-hide className="ml-auto">
+                    <BillExportButton
+                      bill={bill}
+                      room={room}
+                      members={members}
+                      trackers={trackers.data ?? []}
+                      result={result}
+                      billedCentavos={billed}
+                    />
+                  </div>
+                </div>
+
+                <ShareTable
+                  bill={bill}
+                  trackers={trackers.data ?? []}
+                  result={result}
+                  members={members}
+                  billedCentavos={billed}
+                  paidMemberIds={bill.paidMemberIds}
+                  onTogglePaid={(memberId, paid) =>
+                    void action.run(() => repo.setPaid(bill.id, memberId, paid))
+                  }
+                />
+              </div>
               <SettleSummary bill={bill} result={result} />
             </>
           ) : (
