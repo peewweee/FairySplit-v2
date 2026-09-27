@@ -35,6 +35,35 @@ export function hoursSince(startIso: string, nowMs: number): number {
 }
 
 /**
+ * Whether a clock span already on the log describes the exact same event:
+ * same start, same end, same people. A double-tap on "Add entry" or a
+ * network retry resubmits identical data — this is how both repositories
+ * recognise that and skip logging the same stretch twice, rather than
+ * needing every caller to remember to check first.
+ *
+ * Deliberately exact: nobody starts and stops the same appliance at the
+ * precise same instant twice on purpose, so a match here is strong evidence
+ * of a resubmission, not a coincidence. A typed entry (no span) is never a
+ * match — "4 cycles, same day" is a far weaker signal, and could honestly be
+ * two different loads of laundry.
+ */
+export function isDuplicateSpan(
+  existing: Pick<LogEntry, "startedAt" | "endedAt" | "participantIds">[],
+  startedAt: string,
+  endedAt: string,
+  participantIds: string[],
+): boolean {
+  const from = Date.parse(startedAt);
+  const to = Date.parse(endedAt);
+  const wanted = [...participantIds].sort().join(",");
+  return existing.some((e) => {
+    if (!e.startedAt || !e.endedAt) return false;
+    if (Date.parse(e.startedAt) !== from || Date.parse(e.endedAt) !== to) return false;
+    return [...e.participantIds].sort().join(",") === wanted;
+  });
+}
+
+/**
  * One person's share of an entry.
  *
  * An entry charged to three people is a third each — the same rule §7.2 uses

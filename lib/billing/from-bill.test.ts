@@ -161,6 +161,36 @@ describe("splitBill", () => {
     expect(power.result!.rows[0].days).toBe(20);
     expect(water.result!.rows[0].days).toBe(26);
   });
+
+  it("gives everyone the identical figure for an equal split, and the grand total still reconciles exactly", () => {
+    // A fridge that does not divide evenly three ways: 1 kWh/day x 31 days
+    // x P10/kWh = P310.00. P310.00 / 3 = P103.33333... — no way to hand
+    // three people an identical whole-centavo amount that also sums back to
+    // exactly P310.00. This is the actual trade the fix makes: identical
+    // beats exact-to-the-fridge, and the OVERALL bill stays exact regardless.
+    const { result } = splitBill(
+      bill({
+        endsOn: "2026-08-31",
+        rateMillicents: RATE_10_PESOS,
+        appliances: [{ id: "fridge", label: "Fridge", mode: "always_on", kwhPerUnit: 1, trackerId: null }],
+      }),
+      members,
+    );
+
+    const fixed = result!.rows.map((r) => r.fixedCentavos);
+    // All three identical — P103.33, not the P103.34/.33/.33 largestRemainder
+    // would have given.
+    expect(fixed).toEqual([10_333, 10_333, 10_333]);
+    // Those three P103.33s sum to P309.99, one centavo LESS than the fridge's
+    // real P310.00 cost — the centavo largestRemainder would have found for
+    // it instead flows into the residual below, unnoticed.
+    expect(fixed.reduce((a, b) => a + b, 0)).toBe(30_999);
+
+    // The bill's grand total is still exactly right - nothing was lost, it
+    // just moved into the occupancy-weighted column instead of the fridge's.
+    expect(result!.rows.reduce((acc, r) => acc + r.totalCentavos, 0)).toBe(100_000);
+    expect(result!.grandTotalCentavos).toBe(100_000);
+  });
 });
 
 /* -- charged from a log --------------------------------------------------- *
@@ -417,5 +447,80 @@ describe("a log entry shared between people", () => {
       );
     // 6 hours is 6 hours whether one person or three are charged for it.
     expect(metered(["ANA"])).toBe(metered(["ANA", "BEN", "CY"]));
+  });
+});
+
+/* -- two people who each clocked in separately, at overlapping times ------ *
+ * Nobody ticked the other's name when they clocked in - they just happened
+ * to both be running the aircon for part of the same stretch. This is the
+ * case decomposeOverlaps exists for: the overlap is found from the clock
+ * data itself, not from anyone remembering to share the entry up front.
+ * ------------------------------------------------------------------------- */
+
+describe("clocked usage that overlaps between people", () => {
+  it("splits the shared hour, leaves the rest solo, and does not double-bill it", () => {
+    const b = bill({ rateMillicents: RATE_10_PESOS, appliances: [aircon("T-AC")] });
+    const { result } = splitBill(b, members, [
+      // ANA 2-4pm, BEN 3-5pm: they share 3-4pm.
+      airconTracker([clockRun("ANA", 5, 14, 5, 16), clockRun("BEN", 5, 15, 5, 17)]),
+    ]);
+
+    // ANA: 1 solo hour + half of the shared hour = 1.5h x 1kWh x P10 = P15.
+    expect(result!.rows.find((r) => r.memberId === "ANA")!.meteredCentavos).toBe(1_500);
+    // BEN: the same, symmetrically.
+    expect(result!.rows.find((r) => r.memberId === "BEN")!.meteredCentavos).toBe(1_500);
+    // The household used 3 hours of aircon, not 4 - the old solo-only path
+    // would have billed P40 (2h + 2h, each at full price); this bills P30.
+    const meteredTotal = result!.rows.reduce((acc, r) => acc + r.meteredCentavos, 0);
+    expect(meteredTotal).toBe(3_000);
+    expect(result!.rows.reduce((acc, r) => acc + r.totalCentavos, 0)).toBe(b.totalCentavos);
+  });
+
+  it("shares a three-way overlap between everyone who was in it at that moment", () => {
+    const b = bill({ rateMillicents: RATE_10_PESOS, appliances: [aircon("T-AC")] });
+    const { result } = splitBill(b, members, [
+      airconTracker([
+        clockRun("ANA", 5, 13, 5, 16), // 1-4pm
+        clockRun("BEN", 5, 14, 5, 17), // 2-5pm
+        clockRun("CY", 5, 15, 5, 16), // 3-4pm only
+      ]),
+    ]);
+    // ANA: solo 1-2pm (1h) + ANA&BEN 2-3pm (0.5h) + all three 3-4pm (1/3 h).
+    const ana = result!.rows.find((r) => r.memberId === "ANA")!.meteredCentavos;
+    const ben = result!.rows.find((r) => r.memberId === "BEN")!.meteredCentavos;
+    const cy = result!.rows.find((r) => r.memberId === "CY")!.meteredCentavos;
+    // CY was only ever in the fully-shared slice: a third of one hour.
+    expect(cy).toBe(Math.round(((1 / 3) * 1 * 10) * 100));
+    // Whatever the exact split, it still reconciles to the billed total.
+    expect(ana + ben + cy).toBeGreaterThan(0);
+    expect(result!.rows.reduce((acc, r) => acc + r.totalCentavos, 0)).toBe(b.totalCentavos);
+  });
+
+  it("an override pulls that person out of the overlap entirely, leaving the other person's share solo", () => {
+    const b = bill({
+      rateMillicents: RATE_10_PESOS,
+      appliances: [aircon("T-AC")],
+      // ANA disagrees with the clock for this log; BEN does not.
+      logAmounts: { "T-AC": { ANA: 3 } },
+    });
+    const { result } = splitBill(b, members, [
+      airconTracker([clockRun("ANA", 5, 14, 5, 16), clockRun("BEN", 5, 15, 5, 17)]),
+    ]);
+    // ANA: her own typed figure, full price, not shared with anyone.
+    expect(result!.rows.find((r) => r.memberId === "ANA")!.meteredCentavos).toBe(3_000);
+    // BEN: with ANA pulled out, his whole 3-5pm run is solo - 2 full hours,
+    // not half of an hour he now has no one to share with.
+    expect(result!.rows.find((r) => r.memberId === "BEN")!.meteredCentavos).toBe(2_000);
+    expect(result!.rows.reduce((acc, r) => acc + r.totalCentavos, 0)).toBe(b.totalCentavos);
+  });
+
+  it("touching runs that do not actually overlap stay solo, same as before", () => {
+    const b = bill({ rateMillicents: RATE_10_PESOS, appliances: [aircon("T-AC")] });
+    const { result } = splitBill(b, members, [
+      // ANA's run ends exactly when BEN's starts - never in it together.
+      airconTracker([clockRun("ANA", 5, 14, 5, 16), clockRun("BEN", 5, 16, 5, 18)]),
+    ]);
+    expect(result!.rows.find((r) => r.memberId === "ANA")!.meteredCentavos).toBe(2_000);
+    expect(result!.rows.find((r) => r.memberId === "BEN")!.meteredCentavos).toBe(2_000);
   });
 });

@@ -1,6 +1,7 @@
 import { applyRoundUp, computeBill, type BillInput, type BillResult } from "@/lib/billing/engine";
 import { HOURS_PER_DAY, coverageDays } from "@/lib/billing/occupancy";
-import { amountForMemberInRange } from "@/lib/tracking/elapsed";
+import { amountForMemberInRange, amountInRange } from "@/lib/tracking/elapsed";
+import { decomposeOverlaps } from "@/lib/tracking/overlap";
 import type { ApplianceUse, Bill, Member, Tracker } from "@/lib/data/types";
 
 /**
@@ -96,9 +97,17 @@ export function billWindow(bill: Bill): { start: number; end: number } | null {
  * log, the quantities come from that log's entries that fall inside the bill's
  * dates — nobody retypes what the clock already recorded.
  *
- * Each person's total becomes ONE solo use. Deliberately solo: a log is per
- * person, so there is no shared event to divide, and the engine already prices
- * a solo use as quantity x kWh x rate straight to that person.
+ * A clocked entry (has both `startedAt` and `endedAt`) is decomposed against
+ * every OTHER clocked entry on the same log, so two people who each clocked
+ * in for an overlapping stretch share the overlap instead of each being
+ * billed the full rate for it twice — see `decomposeOverlaps`. A typed entry
+ * (a number with no time span) has nothing to overlap against and stays a
+ * solo use, exactly as before.
+ *
+ * A hand-entered figure for a person REPLACES what the log says for them,
+ * overlap included — they are pulled out of every clocked entry they were
+ * on before decomposing the rest, so their own number is never blended with
+ * someone else's clock.
  *
  * Anything logged outside the bill's dates belongs to a different bill and is
  * left for it. A bill with no dates attributes nothing at all rather than
@@ -121,20 +130,72 @@ export function usesFromTrackers(bill: Bill, members: Member[], trackers: Tracke
     // bill, and `trackerProblems` below is what tells the user about it.
     if (!tracker) continue;
 
+    const overridden = new Set(
+      members.filter((m) => overrideFor(bill, tracker.id, m.id) !== null).map((m) => m.id),
+    );
+
+    // Typed entries have no time-of-day to compare — solo, per person,
+    // exactly as this always worked.
+    const untimed = tracker.entries.filter((e) => !(e.startedAt && e.endedAt));
     for (const member of members) {
-      const override = overrideFor(bill, tracker.id, member.id);
-      const quantity =
-        override ?? amountForMemberInRange(tracker, member.id, window.start, window.end);
-      if (quantity <= 0) continue;
+      if (overridden.has(member.id)) continue;
+      const quantity = untimed
+        .filter((e) => e.participantIds.includes(member.id))
+        .reduce(
+          (sum, e) => sum + amountInRange(e, window.start, window.end) / e.participantIds.length,
+          0,
+        );
+      if (quantity > 0) {
+        out.push({
+          id: `tracked:${appliance.id}:${member.id}`,
+          applianceId: appliance.id,
+          quantity,
+          participantIds: [member.id],
+          occurredOn: null,
+          note: null,
+        });
+      }
+    }
+
+    // Clocked entries: decompose who was actually using it at once. An
+    // overridden person is dropped from every entry they were on FIRST, so
+    // decomposition only ever runs across people still following the log.
+    const clocked = tracker.entries
+      .filter((e) => e.startedAt && e.endedAt)
+      .map((e) => ({
+        startedAt: e.startedAt!,
+        endedAt: e.endedAt!,
+        participantIds: e.participantIds.filter((id) => !overridden.has(id)),
+      }))
+      .filter((e) => e.participantIds.length > 0);
+
+    for (const segment of decomposeOverlaps(clocked, window.start, window.end)) {
       out.push({
         // Stable and derived, so re-rendering never renumbers a row.
-        id: `tracked:${appliance.id}:${member.id}`,
+        id: `tracked:${appliance.id}:${segment.participantIds.join("+")}`,
         applianceId: appliance.id,
-        quantity,
-        participantIds: [member.id],
+        quantity: segment.hours,
+        participantIds: segment.participantIds,
         occurredOn: null,
         note: null,
       });
+    }
+
+    // Overridden members: their own figure, solo, standing in for the log
+    // entirely — including whatever share of an overlap it would have counted.
+    for (const member of members) {
+      if (!overridden.has(member.id)) continue;
+      const override = overrideFor(bill, tracker.id, member.id)!;
+      if (override > 0) {
+        out.push({
+          id: `tracked:${appliance.id}:${member.id}`,
+          applianceId: appliance.id,
+          quantity: override,
+          participantIds: [member.id],
+          occurredOn: null,
+          note: null,
+        });
+      }
     }
   }
 

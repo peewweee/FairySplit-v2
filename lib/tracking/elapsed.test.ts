@@ -7,6 +7,7 @@ import {
   formatDuration,
   formatQuantity,
   hoursSince,
+  isDuplicateSpan,
   runningCount,
   nextMidnight,
   settledFor,
@@ -282,5 +283,43 @@ describe("entries charged to several people", () => {
     const t = tracker({ mode: "per_cycle", entries: [shared(["P1", "P2"], 8)] });
     expect(todayFor(t, "P1", local(15))).toBe(4);
     expect(todayFor(t, "P1", local(15, 0, 23))).toBe(0);
+  });
+});
+
+describe("isDuplicateSpan", () => {
+  const start = "2026-08-18T22:00:00.000Z";
+  const end = "2026-08-18T23:30:00.000Z";
+  const span = (startedAt: string, endedAt: string, participantIds: string[]) => ({
+    startedAt,
+    endedAt,
+    participantIds,
+  });
+
+  it("catches an exact resubmission of the same span and people", () => {
+    expect(isDuplicateSpan([span(start, end, ["JEM"])], start, end, ["JEM"])).toBe(true);
+  });
+
+  it("does not match once the time differs, even by a minute", () => {
+    const almost = "2026-08-18T23:31:00.000Z";
+    expect(isDuplicateSpan([span(start, end, ["JEM"])], start, almost, ["JEM"])).toBe(false);
+  });
+
+  it("does not match a different, non-overlapping person on the same span", () => {
+    expect(isDuplicateSpan([span(start, end, ["JEM"])], start, end, ["JANNA"])).toBe(false);
+  });
+
+  it("matches a shared entry regardless of the order the people were ticked in", () => {
+    expect(
+      isDuplicateSpan([span(start, end, ["JANNA", "JEM"])], start, end, ["JEM", "JANNA"]),
+    ).toBe(true);
+  });
+
+  it("ignores a typed entry with no span — a same-day count is not evidence of a duplicate", () => {
+    const typed = { startedAt: null, endedAt: null, participantIds: ["JEM"] };
+    expect(isDuplicateSpan([typed], start, end, ["JEM"])).toBe(false);
+  });
+
+  it("is false against an empty log", () => {
+    expect(isDuplicateSpan([], start, end, ["JEM"])).toBe(false);
   });
 });

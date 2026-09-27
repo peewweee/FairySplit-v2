@@ -60,8 +60,15 @@ export function costColumns(bill: Bill, trackers: Tracker[], result: BillResult)
 
   // Usage on an appliance no log feeds — a record from before logs existed.
   // Without this the columns would quietly fail to reach the Owes figure.
-  const logged = (row: ShareRow) =>
-    columns.filter((c) => c.key !== "shared" && c.key !== "fixed").reduce((a, c) => a + c.valueOf(row), 0);
+  //
+  // Snapshotted with `.filter()` (a new array) rather than closing over
+  // `columns` itself: `columns` is about to have "unlogged" pushed onto it
+  // below, and a live reference would then include that column in its own
+  // filter the next time anything reads its value — `logged` calling
+  // `valueOf` calling `logged` calling `valueOf`, forever, the moment the
+  // table renders it.
+  const loggedColumns = columns.filter((c) => c.key !== "shared" && c.key !== "fixed");
+  const logged = (row: ShareRow) => loggedColumns.reduce((a, c) => a + c.valueOf(row), 0);
   if (result.rows.some((r) => r.meteredCentavos - logged(r) !== 0)) {
     columns.push({
       key: "unlogged",

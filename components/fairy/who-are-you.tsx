@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +24,16 @@ import { parseField, personNameSchema } from "@/lib/forms/schemas";
  * The name is only a label - there are no accounts in Phase A. It seeds the
  * first member when you create a room, so the room isn't born empty.
  */
+/**
+ * Routes where this must stay out of the way. Being asked "who are you? No
+ * account, no password" on top of a Create Account form reads as a
+ * contradiction, and it opens itself unprompted on a first visit — which is
+ * exactly when somebody is most likely to be on one of these pages.
+ */
+const AUTH_ROUTES = ["/login", "/signup", "/auth"];
+
 export function WhoAreYou() {
+  const pathname = usePathname();
   const mounted = useMounted();
   const identity = useRepoQuery(() => repo.getIdentity(), []);
   const [manuallyOpen, setManuallyOpen] = useState(false);
@@ -33,6 +43,8 @@ export function WhoAreYou() {
   // ready but hasn't asked yet.
   const firstTime = !identity.loading && identity.data === null;
   const open = firstTime || manuallyOpen;
+
+  if (AUTH_ROUTES.some((route) => pathname.startsWith(route))) return null;
 
   if (!mounted || identity.loading) {
     return <div className="h-8 w-28 animate-pulse rounded-lg bg-fairy-screen" />;
