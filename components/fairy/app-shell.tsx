@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { AccountMenu } from "@/components/fairy/account-menu";
 import { WhoAreYou } from "@/components/fairy/who-are-you";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -10,8 +11,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/" className="shrink-0">
             <Wordmark />
           </Link>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
             <WhoAreYou />
+            <span aria-hidden className="h-4 w-px bg-fairy-hair" />
+            <AccountMenu />
           </div>
         </div>
       </header>
