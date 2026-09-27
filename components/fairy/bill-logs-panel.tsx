@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Info, Pencil, RotateCcw } from "lucide-react";
 import { ErrorNote } from "@/components/fairy/shell-bits";
 import { amountFor, overrideFor } from "@/lib/billing/from-bill";
-import { formatCentavos, millicentsToPesoString } from "@/lib/billing/money";
+import { formatCentavos, kwhToCentavos, millicentsToPesoString } from "@/lib/billing/money";
 import { HOURS_PER_DAY } from "@/lib/billing/occupancy";
 import { formatQuantity } from "@/lib/tracking/elapsed";
 import { repo, type Bill, type Member, type Tracker } from "@/lib/data";
@@ -337,8 +337,24 @@ function applianceFormula(
   if (kwh === null || kwh === undefined) {
     return `"${bound[0]?.label}" has no kWh figure yet, so there is nothing to price this against.`;
   }
+
+  // `amount` is every hour this person logged; `cost` is what they actually
+  // owe. Those agree exactly UNLESS some of it was shared with someone else
+  // - either because two people clocked in for an overlapping stretch (see
+  // decomposeOverlaps) or because an amount split between several people
+  // simply did not divide into a round number (see equalShare, which gives
+  // everyone the same figure rather than the exact fraction). Either way the
+  // plain multiplication below is only honest when it matches the real
+  // figure; otherwise it would assert an equation that is not true.
+  const straightforward = kwhToCentavos(amount * kwh, rate);
+  if (straightforward === cost) {
+    return (
+      `${round2(amount)} ${plural} × ${kwh} kWh × ₱${millicentsToPesoString(rate)}/kWh ` +
+      `= ${formatCentavos(cost)}.`
+    );
+  }
   return (
-    `${round2(amount)} ${plural} × ${kwh} kWh × ₱${millicentsToPesoString(rate)}/kWh ` +
-    `= ${formatCentavos(cost)}.`
+    `${round2(amount)} ${plural} logged, but some of that was shared with someone else. ` +
+    `Your share of it: ${formatCentavos(cost)}.`
   );
 }

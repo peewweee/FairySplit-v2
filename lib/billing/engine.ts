@@ -1,4 +1,4 @@
-import { kwhToCentavos, largestRemainder } from "@/lib/billing/money";
+import { equalShare, kwhToCentavos, largestRemainder } from "@/lib/billing/money";
 import type {
   ApplianceUse,
   BillAppliance,
@@ -155,8 +155,12 @@ export function computeBill(spec: BillInput): BillResult {
 
     const cost = kwhToCentavos(item.kwhPerUnit * daysCovered, rateMillicents!);
     // It runs 24/7 and benefits everyone whether they were home or not, so
-    // occupancy is irrelevant here: split equally across ALL members.
-    const parts = largestRemainder(cost, memberIds.map(() => 1), memberIds);
+    // occupancy is irrelevant here: split equally across ALL members. Every
+    // member sees the identical figure (equalShare, not largestRemainder) —
+    // safe because step 4 derives the residual from whatever this actually
+    // summed to, so a centavo rounded away here is a centavo step 4 never
+    // needed to hand out; the bill's grand total is unaffected either way.
+    const parts = equalShare(cost, memberIds.length);
     parts.forEach((part, i) => {
       fixed[i] += part;
       addBreakdown(i, item.id, part);
@@ -180,11 +184,12 @@ export function computeBill(spec: BillInput): BillResult {
     }
 
     // 7.2: cost of one use = quantity x kwhPerUnit x rate, and each participant
-    // pays cost / (number of participants). No grid, no typed divisors, works
-    // for one person or twelve.
+    // pays cost / (number of participants) — the identical figure for every
+    // one of them (equalShare; see step 1's note on why that is safe here).
+    // No grid, no typed divisors, works for one person or twelve.
     const cost = kwhToCentavos(event.quantity * item.kwhPerUnit, rateMillicents!);
     const participants = event.participantIds;
-    const shares = largestRemainder(cost, participants.map(() => 1), participants);
+    const shares = equalShare(cost, participants.length);
 
     participants.forEach((participantId, p) => {
       const i = memberIds.indexOf(participantId);
@@ -201,7 +206,9 @@ export function computeBill(spec: BillInput): BillResult {
     const participants = item.participantIds ?? memberIds;
     const known = participants.filter((id) => memberIds.includes(id));
     const targets = known.length > 0 ? known : memberIds;
-    const shares = largestRemainder(item.amountCentavos, targets.map(() => 1), targets);
+    // Same identical-figure treatment as steps 1 and 2, and safe for the
+    // same reason: step 4 still derives the residual from the real sum.
+    const shares = equalShare(item.amountCentavos, targets.length);
     targets.forEach((targetId, t) => {
       other[memberIds.indexOf(targetId)] += shares[t];
     });

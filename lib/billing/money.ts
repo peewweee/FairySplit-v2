@@ -71,3 +71,22 @@ export function largestRemainder(
   for (let k = 0; k < left && k < order.length; k++) out[order[k].i]++;
   return out;
 }
+
+/**
+ * Split `total` into `count` IDENTICAL shares — what a spreadsheet's
+ * `=total/count` cell shows once it is formatted as money, and what
+ * `largestRemainder` deliberately does NOT do: give everyone the same
+ * number rather than guarantee the parts sum back to `total` exactly.
+ *
+ * That trade is only safe where nothing downstream needs the sum to be
+ * exact. It is: the engine's steps 1-3 (always-on, metered, other charges)
+ * feed straight into "whatever's left over" for step 4's residual, so a
+ * centavo this rounds away here reappears there automatically — the bill's
+ * grand total (step 7's assert) is unaffected regardless of how these three
+ * are split internally. Nothing else may use this: `largestRemainder`
+ * is what steps 5 and 6 still use, because a scaled-down carve-out or an
+ * occupancy-weighted share has nowhere further to hand a leftover centavo.
+ */
+export function equalShare(total: Centavos, count: number): Centavos[] {
+  return new Array(count).fill(Math.round(total / count));
+}

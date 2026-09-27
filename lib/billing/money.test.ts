@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   centavosToPesos,
+  equalShare,
   formatCentavos,
   kwhToCentavos,
   largestRemainder,
@@ -130,5 +131,38 @@ describe("largestRemainder", () => {
         for (const part of parts) expect(part).toBeGreaterThanOrEqual(0);
       }
     }
+  });
+});
+
+describe("equalShare", () => {
+  it("gives everyone the identical figure, unlike largestRemainder", () => {
+    // PHP 303.74 (the fridge) split three ways: 303.74 / 3 = 101.24666...,
+    // which rounds to the SAME PHP 101.25 for all three - not the
+    // 101.25/101.25/101.24 largestRemainder would give.
+    expect(equalShare(30_374, 3)).toEqual([10_125, 10_125, 10_125]);
+  });
+
+  it("does not promise the parts sum back to the total - that is the trade", () => {
+    // 101.25 x 3 = 303.75, one centavo MORE than the 303.74 fridge actually
+    // costs. Deliberate: see the doc comment on why nothing downstream needs
+    // this particular sum to be exact.
+    const parts = equalShare(30_374, 3);
+    expect(parts.reduce((a, b) => a + b, 0)).toBe(30_375);
+  });
+
+  it("can round down instead of up, depending which side of .5 it lands on", () => {
+    // 1000 / 3 = 333.333..., rounding DOWN this time - the total shrinks by
+    // one centavo instead of growing, same mechanism either direction.
+    expect(equalShare(1_000, 3)).toEqual([333, 333, 333]);
+  });
+
+  it("sums back exactly whenever the total happens to divide evenly", () => {
+    expect(equalShare(1_000, 2)).toEqual([500, 500]);
+    expect(equalShare(30_000, 3)).toEqual([10_000, 10_000, 10_000]);
+  });
+
+  it("handles one person and a zero total", () => {
+    expect(equalShare(100_000, 1)).toEqual([100_000]);
+    expect(equalShare(0, 3)).toEqual([0, 0, 0]);
   });
 });
