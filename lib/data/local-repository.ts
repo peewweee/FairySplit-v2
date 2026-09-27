@@ -12,7 +12,7 @@ import type {
 } from "@/lib/data/types";
 import { OCCUPANCY_TRACKER_NAME } from "@/lib/data/types";
 import { HOURS_PER_DAY } from "@/lib/billing/occupancy";
-import { HISTORY_DAYS } from "@/lib/tracking/elapsed";
+import { HISTORY_DAYS, isDuplicateSpan } from "@/lib/tracking/elapsed";
 import {
   RepositoryError,
   type ApplianceInput,
@@ -24,6 +24,8 @@ import {
   type UpdateBillInput,
   type UseInput,
 } from "@/lib/data/repository";
+import { normaliseJoinCode, randomJoinCode } from "@/lib/data/join-code";
+import { CHANGE_EVENT } from "@/lib/data/change-event";
 
 /**
  * The Phase A implementation: one JSON blob in localStorage.
@@ -35,10 +37,6 @@ import {
 const STORAGE_KEY = "fairysplit:v2";
 const LEGACY_KEY_V1 = "fairysplit:v1";
 const SCHEMA_VERSION = 2;
-
-/** 6 chars. 0/O/1/I deliberately absent - they get misread out loud (section 5). */
-const JOIN_CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-const JOIN_CODE_LENGTH = 6;
 
 interface FairyDb {
   version: number;
@@ -57,9 +55,6 @@ const emptyDb = (): FairyDb => ({
   bills: {},
   trackers: {},
 });
-
-/** Notifies open screens that the store changed, including other tabs. */
-const CHANGE_EVENT = "fairysplit:changed";
 
 /**
  * The v1 shape, kept only so existing data survives the move to bill-owned
@@ -267,17 +262,10 @@ const newId = () => crypto.randomUUID();
 
 function makeJoinCode(taken: Set<string>): string {
   for (let attempt = 0; attempt < 200; attempt++) {
-    const bytes = crypto.getRandomValues(new Uint8Array(JOIN_CODE_LENGTH));
-    let code = "";
-    for (const b of bytes) code += JOIN_CODE_ALPHABET[b % JOIN_CODE_ALPHABET.length];
+    const code = randomJoinCode();
     if (!taken.has(code)) return code;
   }
   throw new RepositoryError("Could not generate a unique join code.");
-}
-
-/** Normalises what the user typed so "abc 123" finds "ABC123". */
-export function normaliseJoinCode(code: string): string {
-  return code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
 function requireRoom(db: FairyDb, id: string): Room {
@@ -1016,14 +1004,18 @@ export class LocalRepository implements Repository {
         throw new RepositoryError("Tick at least one person this is charged to.");
       }
       const hours = spanHours(startedAt, endedAt);
-      tracker.entries.push({
-        id: newId(),
-        participantIds: [...participantIds],
-        quantity: hours,
-        startedAt,
-        endedAt,
-        createdAt: new Date().toISOString(),
-      });
+      // A double-tap or a retry resubmits the exact same span — skip it
+      // rather than log the same stretch of time twice.
+      if (!isDuplicateSpan(tracker.entries, startedAt, endedAt, participantIds)) {
+        tracker.entries.push({
+          id: newId(),
+          participantIds: [...participantIds],
+          quantity: hours,
+          startedAt,
+          endedAt,
+          createdAt: new Date().toISOString(),
+        });
+      }
       return clone(tracker);
     });
   }
@@ -1042,6 +1034,11 @@ export class LocalRepository implements Repository {
       const hours = spans.map((span) => spanHours(span.startedAt, span.endedAt));
       const now = new Date().toISOString();
       spans.forEach((span, i) => {
+        // Checked against the live array, so a duplicate earlier IN THIS
+        // SAME batch is caught too, not just one already on the log.
+        if (isDuplicateSpan(tracker.entries, span.startedAt, span.endedAt, span.participantIds)) {
+          return;
+        }
         tracker.entries.push({
           id: newId(),
           participantIds: [...span.participantIds],

@@ -91,8 +91,16 @@ export function useRepoQuery<T>(load: () => Promise<T>, deps: readonly unknown[]
 export function useRepoAction() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A ref, not state: `disabled={pending}` only takes effect once a render
+  // commits, and React batches the `setPending(true)` that would trigger it —
+  // so a double-tap or a bouncing key can fire `run` twice before the button
+  // has actually disabled itself. A ref is read and written immediately, with
+  // no render in between, so the second call sees the first one's flag.
+  const inFlight = useRef(false);
 
   const run = useCallback(async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
+    if (inFlight.current) return undefined;
+    inFlight.current = true;
     setPending(true);
     setError(null);
     try {
@@ -101,6 +109,7 @@ export function useRepoAction() {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       return undefined;
     } finally {
+      inFlight.current = false;
       setPending(false);
     }
   }, []);
