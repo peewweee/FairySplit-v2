@@ -165,3 +165,30 @@ export async function signInWithGoogle(): Promise<never> {
 
   redirect(data.url);
 }
+
+/**
+ * Start the Facebook handshake. Same shape as signInWithGoogle, and the
+ * same reasoning about not going through the email path — but Facebook
+ * does NOT bundle email into its basic login the way Google's OIDC scopes
+ * do, so it has to be asked for explicitly. `getUser()` (lib/auth/dal.ts)
+ * treats a signed-in user with no email as signed out, so without this a
+ * Facebook account that had the email permission declined would be
+ * invisibly broken rather than clearly rejected.
+ */
+export async function signInWithFacebook(): Promise<never> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "facebook",
+    options: {
+      redirectTo: `${await origin()}/auth/callback`,
+      scopes: "email,public_profile",
+    },
+  });
+
+  if (error || !data.url) {
+    redirect("/login?error=facebook-unavailable");
+  }
+
+  redirect(data.url);
+}
