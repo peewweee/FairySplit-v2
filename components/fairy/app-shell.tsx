@@ -22,8 +22,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="mx-auto w-full max-w-[1180px] flex-1 px-5 py-9 sm:px-6">{children}</main>
 
       <footer className="mx-auto w-full max-w-[1180px] px-5 pb-10 sm:px-6">
-        <p className="border-t border-fairy-hair pt-5 text-[11.5px] font-medium text-fairy-grey-strong">
-          Fairly split expenses, like magic.
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-fairy-hair pt-5 text-[11.5px] font-medium text-fairy-grey-strong">
+          <span>Fairly split expenses, like magic.</span>
+          <Link href="/privacy" className="underline underline-offset-2 hover:text-fairy-ink">
+            Privacy
+          </Link>
         </p>
       </footer>
     </>

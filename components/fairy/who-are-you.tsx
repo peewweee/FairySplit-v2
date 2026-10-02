@@ -28,9 +28,11 @@ import { parseField, personNameSchema } from "@/lib/forms/schemas";
  * Routes where this must stay out of the way. Being asked "who are you? No
  * account, no password" on top of a Create Account form reads as a
  * contradiction, and it opens itself unprompted on a first visit — which is
- * exactly when somebody is most likely to be on one of these pages.
+ * exactly when somebody is most likely to be on one of these pages. The
+ * privacy policy and the data-deletion page are the same: whoever opens them
+ * cold has to be able to read them.
  */
-const AUTH_ROUTES = ["/login", "/signup", "/auth"];
+const QUIET_ROUTES = ["/login", "/signup", "/auth", "/privacy", "/data-deletion"];
 
 export function WhoAreYou() {
   const pathname = usePathname();
@@ -44,7 +46,7 @@ export function WhoAreYou() {
   const firstTime = !identity.loading && identity.data === null;
   const open = firstTime || manuallyOpen;
 
-  if (AUTH_ROUTES.some((route) => pathname.startsWith(route))) return null;
+  if (QUIET_ROUTES.some((route) => pathname.startsWith(route))) return null;
 
   if (!mounted || identity.loading) {
     return <div className="h-8 w-28 animate-pulse rounded-lg bg-fairy-screen" />;
