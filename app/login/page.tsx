@@ -7,7 +7,7 @@ import { GoogleButton } from "@/components/fairy/google-button";
 import { FacebookButton } from "@/components/fairy/facebook-button";
 import { signIn } from "@/lib/auth/actions";
 import { getUser } from "@/lib/auth/dal";
-import { EMAIL_PASSWORD_ENABLED } from "@/lib/auth/config";
+import { EMAIL_PASSWORD_ENABLED, FACEBOOK_ENABLED } from "@/lib/auth/config";
 
 export const metadata: Metadata = { title: "Sign in · FairySplit" };
 
@@ -39,7 +39,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
     >
       <div className="grid gap-2.5">
         <GoogleButton label="Continue with Google" />
-        <FacebookButton label="Continue with Facebook" />
+        {FACEBOOK_ENABLED && <FacebookButton label="Continue with Facebook" />}
       </div>
       {EMAIL_PASSWORD_ENABLED && (
         <>

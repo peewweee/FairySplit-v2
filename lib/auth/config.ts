@@ -11,3 +11,6 @@
  * the domain and SMTP sender are sorted; no other change needed.
  */
 export const EMAIL_PASSWORD_ENABLED = false;
+
+// Parked until the Facebook app is published (needs Business Verification); anyone without an app role gets "App not active".
+export const FACEBOOK_ENABLED = false;
