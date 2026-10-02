@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { ParticipantPicker } from "@/components/fairy/participant-picker";
 import { Input } from "@/components/ui/input";
 import { ErrorNote, LoadingRows } from "@/components/fairy/shell-bits";
-import { findMe } from "@/components/fairy/bills-panel";
 import { AddLogForm } from "@/components/fairy/add-log-dialog";
 import { EntryList } from "@/components/fairy/log-entries";
 import {
@@ -42,8 +41,8 @@ import { cn } from "@/lib/utils";
  */
 export function TrackingPanel({ roomId, members }: { roomId: string; members: Member[] }) {
   const trackers = useRepoQuery(() => repo.listTrackers(roomId), [roomId]);
-  const identity = useRepoQuery(() => repo.getIdentity(), []);
-  const me = findMe(identity.data?.name, members);
+  const mine = useRepoQuery(() => repo.getMyMember(roomId), [roomId]);
+  const me = mine.data ?? null;
 
   return (
     <section aria-labelledby="tracking-heading" className="fs-card mb-6 p-4 sm:p-5">
@@ -63,14 +62,17 @@ export function TrackingPanel({ roomId, members }: { roomId: string; members: Me
         </div>
       </div>
 
-      <ErrorNote>{trackers.error ?? identity.error}</ErrorNote>
+      <ErrorNote>{trackers.error ?? mine.error}</ErrorNote>
 
-      {!me ? (
-        <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey-strong">
-          We can&rsquo;t tell which of these {members.length} people you are. Set
-          your name in the header to match your name in this room and your clock
-          appears here.
-        </p>
+      {mine.loading ? (
+        <LoadingRows rows={2} />
+      ) : !me ? (
+        !mine.error && (
+          <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey-strong">
+            You&rsquo;re not one of the people in this room, so there&rsquo;s no
+            clock for you here.
+          </p>
+        )
       ) : trackers.loading ? (
         <LoadingRows rows={2} />
       ) : (

@@ -32,7 +32,6 @@ import { applyRoundUp } from "@/lib/billing/engine";
 import { splitBill, trackerProblems } from "@/lib/billing/from-bill";
 import { BillLogsPanel } from "@/components/fairy/bill-logs-panel";
 import { BillExportButton } from "@/components/fairy/bill-export";
-import { findMe } from "@/components/fairy/bills-panel";
 import { formatCentavos } from "@/lib/billing/money";
 import { repo, type Bill, type Member, type Room } from "@/lib/data";
 import { useRepoAction, useRepoQuery } from "@/lib/data/hooks";
@@ -42,14 +41,19 @@ export function BillScreen({ roomId, billId }: { roomId: string; billId: string 
   const room = useRepoQuery(() => repo.getRoom(roomId), [roomId]);
   const bill = useRepoQuery(() => repo.getBill(billId), [billId]);
   const members = useRepoQuery(() => repo.listMembers(roomId), [roomId]);
+  const me = useRepoQuery(() => repo.getMyMember(roomId), [roomId]);
 
-  if (bill.loading || room.loading || members.loading) return <LoadingRows rows={3} />;
+  if (bill.loading || room.loading || members.loading || me.loading) {
+    return <LoadingRows rows={3} />;
+  }
 
   if (!bill.data || !room.data) {
     return (
       <>
         <Crumbs items={[{ label: "Rooms", href: "/" }, { label: "Not found" }]} />
-        <ErrorNote>{bill.error ?? room.error ?? "That bill isn't on this device."}</ErrorNote>
+        <ErrorNote>
+          {bill.error ?? room.error ?? "That bill doesn't exist, or you're not in its room."}
+        </ErrorNote>
       </>
     );
   }
@@ -59,6 +63,7 @@ export function BillScreen({ roomId, billId }: { roomId: string; billId: string 
       room={room.data}
       bill={bill.data}
       members={members.data ?? []}
+      me={me.data ?? null}
     />
   );
 }
@@ -67,17 +72,18 @@ function BillBody({
   room,
   bill,
   members,
+  me,
 }: {
   room: Room;
   bill: Bill;
   members: Member[];
+  /** The signed-in person's own row in this room, if they have one. */
+  me: Member | null;
 }) {
   const billed = applyRoundUp(bill.totalCentavos, bill.roundUpToPeso);
   // Appliances charged from a log read their quantities out of it, so the
   // split cannot be computed without them.
   const trackers = useRepoQuery(() => repo.listTrackers(bill.roomId), [bill.roomId]);
-  // Whose logs to summarise. Name matching only, until accounts exist (§9).
-  const identity = useRepoQuery(() => repo.getIdentity(), []);
   const { result, problem } = splitBill(bill, members, trackers.data ?? []);
   const action = useRepoAction();
 
@@ -111,13 +117,7 @@ function BillBody({
         </div>
       </div>
 
-      <BillLogsPanel
-        bill={bill}
-        me={findMe(identity.data?.name, members)}
-        members={members}
-        trackers={trackers.data ?? []}
-        result={result}
-      />
+      <BillLogsPanel bill={bill} me={me} trackers={trackers.data ?? []} result={result} />
 
       <div className="grid gap-5">
         {/* The share table is the point of the screen, so it leads. */}

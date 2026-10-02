@@ -443,6 +443,14 @@ export class LocalRepository implements Repository {
       .map(clone);
   }
 
+  async getMyMember(roomId: string): Promise<Member | null> {
+    // No accounts in this store, so the header name is the only way to say who you are.
+    const wanted = (await this.getIdentity())?.name.trim().toLowerCase();
+    if (!wanted) return null;
+    const members = await this.listMembers(roomId);
+    return members.find((m) => m.name.trim().toLowerCase() === wanted) ?? null;
+  }
+
   async addMember(roomId: string, name: string): Promise<Member> {
     return mutate((db) => {
       const room = requireRoom(db, roomId);

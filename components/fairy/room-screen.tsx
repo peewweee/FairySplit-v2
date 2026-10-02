@@ -22,7 +22,7 @@ export function RoomScreen({ roomId }: { roomId: string }) {
       <>
         <Crumbs items={[{ label: "Rooms", href: "/" }, { label: "Not found" }]} />
         <ErrorNote>
-          {room.error ?? "That room isn't on this device. It may have been deleted."}
+          {room.error ?? "That room doesn't exist, or you're not in it."}
         </ErrorNote>
       </>
     );

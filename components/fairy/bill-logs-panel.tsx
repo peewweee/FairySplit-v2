@@ -41,13 +41,11 @@ export interface LogLine {
 export function BillLogsPanel({
   bill,
   me,
-  members,
   trackers,
   result,
 }: {
   bill: Bill;
   me: Member | null;
-  members: Member[];
   trackers: Tracker[];
   result: BillResult | null;
 }) {
@@ -61,8 +59,7 @@ export function BillLogsPanel({
 
       {!me ? (
         <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey-strong">
-          We can&rsquo;t tell which of these {members.length} people you are. Set
-          your name in the header to match your name in this room.
+          You&rsquo;re not one of the people in this room.
         </p>
       ) : lines.length === 0 ? (
         <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey-strong">

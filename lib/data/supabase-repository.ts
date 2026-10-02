@@ -482,6 +482,23 @@ export class SupabaseRepository implements Repository {
     return (await this.membersOf(roomId)).map(memberFromRow);
   }
 
+  // By account, never by name: names are per-room labels and two people can share one.
+  async getMyMember(roomId: string): Promise<Member | null> {
+    const {
+      data: { user },
+    } = await this.client.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await this.client
+      .from("members")
+      .select("id, room_id, user_id, name, created_at")
+      .eq("room_id", roomId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (error) fail(error);
+    return data ? memberFromRow(data as MemberRow) : null;
+  }
+
   async addMember(roomId: string, name: string): Promise<Member> {
     // Nothing to seed into existing bills: an absent bill_member_hours row
     // already reads back as "unfilled" for anyone, new member included.

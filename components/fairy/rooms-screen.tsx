@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Home, Info, KeyRound, Plus, Users } from "lucide-react";
+import { Home, KeyRound, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -217,7 +217,10 @@ function JoinRoomDialog() {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-[21px] text-fairy-ink">Join a room</DialogTitle>
-          <DialogDescription>Six characters, no zeros or ones.</DialogDescription>
+          <DialogDescription>
+            Six characters, no zeros or ones. Ask a housemate — the code is in
+            their room&rsquo;s settings.
+          </DialogDescription>
         </DialogHeader>
 
         <Field
@@ -235,17 +238,6 @@ function JoinRoomDialog() {
           onEnter={() => void join()}
           className="[&_input]:font-mono [&_input]:tracking-[0.25em] [&_input]:uppercase"
         />
-
-        {/* Section 9: be honest about what a join code can and cannot do yet. */}
-        <div className="flex gap-2.5 rounded-xl border border-fairy-ember/30 bg-fairy-ember-tint px-3 py-2.5">
-          <Info className="mt-0.5 size-4 shrink-0 text-fairy-ember" aria-hidden />
-          <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-ink-2">
-            <span className="font-bold text-fairy-ember">Local to this device.</span>{" "}
-            FairySplit has no server yet, so a code can only find rooms created in
-            this browser — not one on your housemate&rsquo;s phone. Cross-device
-            joining arrives with sync.
-          </p>
-        </div>
 
         <DialogFooter>
           <Button size="lg" onClick={() => void join()} disabled={action.pending}>

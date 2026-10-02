@@ -21,16 +21,15 @@ import { parseField, personNameSchema } from "@/lib/forms/schemas";
 /**
  * "Who are you" (Phase 1).
  *
- * The name is only a label - there are no accounts in Phase A. It seeds the
- * first member when you create a room, so the room isn't born empty.
+ * The name is the label your housemates see on your row. It seeds the first
+ * member when you create a room, so the room isn't born empty.
  */
 /**
- * Routes where this must stay out of the way. Being asked "who are you? No
- * account, no password" on top of a Create Account form reads as a
- * contradiction, and it opens itself unprompted on a first visit — which is
- * exactly when somebody is most likely to be on one of these pages. The
- * privacy policy and the data-deletion page are the same: whoever opens them
- * cold has to be able to read them.
+ * Routes where this must stay out of the way. Being asked "who are you?" on
+ * top of a sign-in form is noise, and it opens itself unprompted on a first
+ * visit — which is exactly when somebody is most likely to be on one of these
+ * pages. The privacy policy and the data-deletion page are the same: whoever
+ * opens them cold has to be able to read them.
  */
 const QUIET_ROUTES = ["/login", "/signup", "/auth", "/privacy", "/data-deletion"];
 
@@ -119,8 +118,7 @@ function IdentityDialog({
             {firstTime ? "Hello — who are you?" : "Change your name"}
           </DialogTitle>
           <DialogDescription>
-            Just a label so your housemates know which row is yours. No account,
-            no password.
+            This is the name your housemates see on your row.
           </DialogDescription>
         </DialogHeader>
 

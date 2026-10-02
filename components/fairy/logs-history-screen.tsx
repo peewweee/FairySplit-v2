@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Crumbs, ErrorNote, LoadingRows, PageHeader } from "@/components/fairy/shell-bits";
-import { findMe } from "@/components/fairy/bills-panel";
 import { AddEntryForm, EntryRow } from "@/components/fairy/log-entries";
 import { HISTORY_DAYS, dayKeyOf } from "@/lib/tracking/elapsed";
 import { repo, type LogEntry, type Member, type Tracker } from "@/lib/data";
@@ -22,8 +21,8 @@ export function LogsHistoryScreen({ roomId }: { roomId: string }) {
   const room = useRepoQuery(() => repo.getRoom(roomId), [roomId]);
   const members = useRepoQuery(() => repo.listMembers(roomId), [roomId]);
   const trackers = useRepoQuery(() => repo.listTrackers(roomId), [roomId]);
-  const identity = useRepoQuery(() => repo.getIdentity(), []);
-  const me = findMe(identity.data?.name, members.data ?? []);
+  const mine = useRepoQuery(() => repo.getMyMember(roomId), [roomId]);
+  const me = mine.data ?? null;
 
   const logs = trackers.data ?? [];
   const [selected, setSelected] = useState<string | null>(null);
@@ -35,13 +34,13 @@ export function LogsHistoryScreen({ roomId }: { roomId: string }) {
     if (wanted) setSelected(wanted);
   }, []);
 
-  if (room.loading || trackers.loading) return <LoadingRows rows={3} />;
+  if (room.loading || trackers.loading || mine.loading) return <LoadingRows rows={3} />;
 
   if (room.error || !room.data) {
     return (
       <>
         <Crumbs items={[{ label: "Rooms", href: "/" }, { label: "Not found" }]} />
-        <ErrorNote>{room.error ?? "That room isn't on this device."}</ErrorNote>
+        <ErrorNote>{room.error ?? "That room doesn't exist, or you're not in it."}</ErrorNote>
       </>
     );
   }
@@ -59,7 +58,7 @@ export function LogsHistoryScreen({ roomId }: { roomId: string }) {
       />
       <PageHeader title="Logs history" />
 
-      <ErrorNote>{trackers.error ?? members.error}</ErrorNote>
+      <ErrorNote>{trackers.error ?? members.error ?? mine.error}</ErrorNote>
 
       {logs.length === 0 ? (
         <p className="text-[13px] font-medium text-fairy-grey-strong">
@@ -99,10 +98,11 @@ export function LogsHistoryScreen({ roomId }: { roomId: string }) {
           {active && me ? (
             <LogHistory tracker={active} me={me} members={members.data ?? []} />
           ) : (
-            <p className="text-[13px] font-medium text-fairy-grey-strong">
-              We can&rsquo;t tell which of these {(members.data ?? []).length} people
-              you are. Set your name in the header to match your name in this room.
-            </p>
+            !mine.error && (
+              <p className="text-[13px] font-medium text-fairy-grey-strong">
+                You&rsquo;re not one of the people in this room.
+              </p>
+            )
           )}
         </>
       )}

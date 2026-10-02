@@ -26,6 +26,7 @@ import { SparkleBurst, useSparkle } from "@/components/fairy/sparkle-burst";
 import { repo, type Member, type MemberFootprint } from "@/lib/data";
 import { useRepoAction, useRepoQuery } from "@/lib/data/hooks";
 import { parseField, personNameSchema } from "@/lib/forms/schemas";
+import { inviteLink } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 /**
@@ -273,8 +274,7 @@ function FootprintSummary({
  * Getting somebody else into the room.
  *
  * A code and a link, not a name field: you are inviting a person, not filing
- * one. Both are honest about what they can reach — with no server behind this
- * yet, neither can get to a housemate's phone (§9).
+ * one. Both work from any device, but the person has to be signed in first.
  */
 function InviteButton({ roomId }: { roomId: string }) {
   const [open, setOpen] = useState(false);
@@ -319,37 +319,19 @@ function InviteButton({ roomId }: { roomId: string }) {
               multiline
             />
           </div>
-
-          <div className="border-l-[2.5px] border-fairy-ember bg-fairy-ember-tint px-3 py-2.5">
-            <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-ink-2">
-              <span className="font-bold text-fairy-ember">
-                Neither reaches another device yet.
-              </span>{" "}
-              There is no server behind this, so a code or link can only find
-              rooms saved in this browser. Sync is what makes it work on your
-              housemate&rsquo;s phone.
-            </p>
-          </div>
         </DialogContent>
       </Dialog>
     </>
   );
 }
 
-/** The room's join URL. Empty until the room has loaded. */
-function inviteLink(code: string): string {
-  if (!code) return "";
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  return `${origin}/?join=${code}`;
-}
-
 /**
  * The whole thing somebody actually sends, not just the URL.
  *
  * What is shown IS what is copied — a "Copy link" button that quietly put four
- * lines on the clipboard would be a small lie. The caveat about this not
- * reaching another device stays out of it: that is a note to the person
- * sending, and it is already on screen beside this.
+ * lines on the clipboard would be a small lie. The "sign in first" caveat
+ * stays out of it: that is a note to the person sending, and it is already
+ * on screen beside this.
  */
 function inviteMessage(roomName: string, code: string): string {
   if (!code) return "";

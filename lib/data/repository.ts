@@ -103,6 +103,8 @@ export interface Repository {
 
   /* -- members ----------------------------------------------------------- */
   listMembers(roomId: string): Promise<Member[]>;
+  /** Which member of this room is the signed-in person; null if none is. */
+  getMyMember(roomId: string): Promise<Member | null>;
   addMember(roomId: string, name: string): Promise<Member>;
   renameMember(roomId: string, memberId: string, name: string): Promise<Member>;
   removeMember(roomId: string, memberId: string): Promise<void>;

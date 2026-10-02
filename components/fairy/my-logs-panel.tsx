@@ -30,15 +30,7 @@ import type { ZodType } from "zod";
  * Always-on appliances are deliberately absent: a fridge runs whether you are
  * home or not, so there is nothing personal to log against it.
  */
-export function MyLogsPanel({
-  bill,
-  me,
-  members,
-}: {
-  bill: Bill;
-  me: Member | null;
-  members: Member[];
-}) {
+export function MyLogsPanel({ bill, me }: { bill: Bill; me: Member | null }) {
   const loggable = bill.appliances.filter((a) => a.mode !== "always_on");
 
   if (!me) {
@@ -48,9 +40,8 @@ export function MyLogsPanel({
           Your logs
         </h2>
         <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey">
-          We can&rsquo;t tell which of these {members.length} people you are. Set
-          your name in the header to match your name in this room and your own
-          logs appear here.
+          You&rsquo;re not one of the people in this room, so there are no logs of
+          yours to show here.
         </p>
       </section>
     );

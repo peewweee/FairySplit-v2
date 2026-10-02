@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Info, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -32,7 +32,7 @@ export function RoomSettingsScreen({ roomId }: { roomId: string }) {
     return (
       <>
         <Crumbs items={[{ label: "Rooms", href: "/" }, { label: "Not found" }]} />
-        <ErrorNote>{room.error ?? "That room isn't on this device."}</ErrorNote>
+        <ErrorNote>{room.error ?? "That room doesn't exist, or you're not in it."}</ErrorNote>
       </>
     );
   }
@@ -116,14 +116,6 @@ function RoomNamePanel({ room }: { room: Room }) {
           <Label>Join code</Label>
           <JoinCode code={room.joinCode} copyable className="h-10" />
         </div>
-      </div>
-
-      <div className="mt-4 flex gap-2.5 rounded-xl border border-fairy-ember/30 bg-fairy-ember-tint px-3 py-2.5">
-        <Info className="mt-0.5 size-4 shrink-0 text-fairy-ember" aria-hidden />
-        <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-ink-2">
-          This code only works in this browser for now — FairySplit has no server
-          yet, so it can&rsquo;t reach your housemate&rsquo;s device.
-        </p>
       </div>
     </section>
   );

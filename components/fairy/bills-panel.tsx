@@ -16,8 +16,8 @@ import { useRepoQuery } from "@/lib/data/hooks";
 
 export function BillsPanel({ roomId, members }: { roomId: string; members: Member[] }) {
   const bills = useRepoQuery(() => repo.listBills(roomId), [roomId]);
-  const identity = useRepoQuery(() => repo.getIdentity(), []);
-  const me = findMe(identity.data?.name, members);
+  const mine = useRepoQuery(() => repo.getMyMember(roomId), [roomId]);
+  const me = mine.data ?? null;
   const trackers = useRepoQuery(() => repo.listTrackers(roomId), [roomId]);
   const list = bills.data ?? [];
 
@@ -109,7 +109,7 @@ function BillRow({
   roomId: string;
   bill: Bill;
   members: Member[];
-  /** The member this browser belongs to, if we can tell. */
+  /** The signed-in person's own row in this room, if they have one. */
   me: Member | null;
   trackers: Tracker[];
 }) {
@@ -198,20 +198,6 @@ export function NewBillDialog({
       )}
     </>
   );
-}
-
-/**
- * Which member is "me"?
- *
- * Phase A has no accounts — the identity in the header is just a name, and it
- * seeds the first member when you create a room. So this matches on that name.
- * A miss returns null and the per-person lines are simply left off, rather than
- * showing someone else's numbers as yours.
- */
-export function findMe(identityName: string | undefined, members: Member[]): Member | null {
-  const wanted = identityName?.trim().toLowerCase();
-  if (!wanted) return null;
-  return members.find((m) => m.name.trim().toLowerCase() === wanted) ?? null;
 }
 
 /** This person's logged hours and their share of one bill. */
