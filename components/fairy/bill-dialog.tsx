@@ -295,9 +295,6 @@ export function BillDialog({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey">
-              {BILL_KIND_META[kind].hint}
-            </p>
           </div>
 
           <Field

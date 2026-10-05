@@ -27,7 +27,6 @@ export const BILL_KIND_META: Record<
   BillKind,
   {
     label: string;
-    hint: string;
     /** Can carry a per-kWh rate, and therefore appliances (section 3). */
     itemizable: boolean;
     /** Weighted by days stayed, so the window it covers is required. */
