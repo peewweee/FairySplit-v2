@@ -7,12 +7,14 @@ import { GoogleButton } from "@/components/fairy/google-button";
 import { FacebookButton } from "@/components/fairy/facebook-button";
 import { signUp } from "@/lib/auth/actions";
 import { getUser } from "@/lib/auth/dal";
+import { afterSignInPath, cleanJoinCode } from "@/lib/auth/join-intent";
 import { EMAIL_PASSWORD_ENABLED, FACEBOOK_ENABLED } from "@/lib/auth/config";
 
 export const metadata: Metadata = { title: "Create an account · FairySplit" };
 
-export default async function SignUpPage() {
-  if (await getUser()) redirect("/");
+export default async function SignUpPage(props: PageProps<"/signup">) {
+  const invite = cleanJoinCode((await props.searchParams).join);
+  if (await getUser()) redirect(afterSignInPath(invite));
 
   return (
     <AuthCard
@@ -20,7 +22,7 @@ export default async function SignUpPage() {
       subtitle="An account is what lets a join code reach your housemates' phones."
     >
       <div className="grid gap-2.5">
-        <GoogleButton label="Sign up with Google" />
+        <GoogleButton label="Sign up with Google" invite={invite} />
         {FACEBOOK_ENABLED && <FacebookButton label="Sign up with Facebook" />}
       </div>
       {EMAIL_PASSWORD_ENABLED && (

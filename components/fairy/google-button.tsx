@@ -9,9 +9,11 @@ import { signInWithGoogle } from "@/lib/auth/actions";
  * The Google path, offered first because it is the shorter one: no password to
  * invent, and no confirmation email to go and find.
  */
-export function GoogleButton({ label }: { label: string }) {
+export function GoogleButton({ label, invite }: { label: string; invite?: string | null }) {
   return (
     <form action={signInWithGoogle}>
+      {/* A room invite, so the trip to Google and back does not lose it. */}
+      {invite && <input type="hidden" name="join" value={invite} />}
       <Inner label={label} />
     </form>
   );

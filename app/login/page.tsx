@@ -7,6 +7,7 @@ import { GoogleButton } from "@/components/fairy/google-button";
 import { FacebookButton } from "@/components/fairy/facebook-button";
 import { signIn } from "@/lib/auth/actions";
 import { getUser } from "@/lib/auth/dal";
+import { afterSignInPath, cleanJoinCode } from "@/lib/auth/join-intent";
 import { EMAIL_PASSWORD_ENABLED, FACEBOOK_ENABLED } from "@/lib/auth/config";
 
 export const metadata: Metadata = { title: "Sign in · FairySplit" };
@@ -26,9 +27,10 @@ const PROBLEMS: Record<string, string> = {
 };
 
 export default async function LoginPage(props: PageProps<"/login">) {
-  if (await getUser()) redirect("/");
+  const { error, join } = await props.searchParams;
+  const invite = cleanJoinCode(join);
+  if (await getUser()) redirect(afterSignInPath(invite));
 
-  const { error } = await props.searchParams;
   const notice = typeof error === "string" ? PROBLEMS[error] : undefined;
 
   return (
@@ -38,7 +40,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
       notice={notice}
     >
       <div className="grid gap-2.5">
-        <GoogleButton label="Continue with Google" />
+        <GoogleButton label="Continue with Google" invite={invite} />
         {FACEBOOK_ENABLED && <FacebookButton label="Continue with Facebook" />}
       </div>
       {EMAIL_PASSWORD_ENABLED && (

@@ -1,10 +1,11 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { JOIN_COOKIE, cleanJoinCode, loginPath } from "@/lib/auth/join-intent";
 import { signInSchema, signUpSchema } from "@/lib/auth/schemas";
 
 export interface AuthState {
@@ -43,6 +44,24 @@ async function origin(): Promise<string> {
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const protocol = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   return `${protocol}://${host}`;
+}
+
+/** Keep a room invite across the trip to Google and back; drop a stale one if there is none. */
+async function rememberInvite(formData: FormData): Promise<string | null> {
+  const jar = await cookies();
+  const invite = cleanJoinCode(formData.get("join"));
+  if (!invite) {
+    jar.delete(JOIN_COOKIE);
+    return null;
+  }
+  jar.set(JOIN_COOKIE, invite, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 30,
+  });
+  return invite;
 }
 
 export async function signIn(
@@ -142,8 +161,13 @@ export async function signOut(): Promise<void> {
  *
  * signInWithOAuth does not sign anybody in; it returns the URL to send them
  * to, and stashes the PKCE verifier in a cookie that /auth/callback needs.
+ *
+ * A room invite (the form's `join` field) rides along in a cookie of its own.
+ * It is not put in `redirectTo`: Supabase only honours redirect URLs on its
+ * allow-list, and a changed URL could quietly break sign-in for everyone.
  */
-export async function signInWithGoogle(): Promise<never> {
+export async function signInWithGoogle(formData: FormData): Promise<never> {
+  const invite = await rememberInvite(formData);
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -160,7 +184,7 @@ export async function signInWithGoogle(): Promise<never> {
   });
 
   if (error || !data.url) {
-    redirect("/login?error=google-unavailable");
+    redirect(loginPath(invite, "google-unavailable"));
   }
 
   redirect(data.url);
