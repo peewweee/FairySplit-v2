@@ -296,7 +296,7 @@ export function NewRunForm({
       )}
 
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-        <span className="text-[10.5px] font-bold tracking-[0.1em] text-fairy-grey-strong uppercase">
+        <span className="text-[10.5px] font-bold text-fairy-grey-strong">
           Select Dates
         </span>
         <div className="flex items-end gap-2">
@@ -441,7 +441,7 @@ function MultiDateCalendar({
           <span
             key={i}
             aria-hidden
-            className="py-1 text-center text-[9.5px] font-bold tracking-[0.06em] text-fairy-grey-strong uppercase"
+            className="py-1 text-center text-[9.5px] font-bold text-fairy-grey-strong"
           >
             {label}
           </span>

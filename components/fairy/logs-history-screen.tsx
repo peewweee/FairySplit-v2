@@ -159,7 +159,7 @@ function LogHistory({
         <div className="grid gap-4">
           {days.map(({ key, label, entries }) => (
             <div key={key}>
-              <p className="mb-1.5 text-[10.5px] font-bold tracking-[0.1em] text-fairy-grey-strong uppercase">
+              <p className="mb-1.5 text-[10.5px] font-bold text-fairy-grey-strong">
                 {label}
               </p>
               <ul className="grid gap-1.5">

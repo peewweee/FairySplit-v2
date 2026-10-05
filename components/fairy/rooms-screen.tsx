@@ -30,7 +30,6 @@ export function RoomsScreen() {
     <div>
       <PageHeader
         title="Your rooms"
-        description="A room is one household. Everyone in it sees everyone's numbers."
         action={
           <>
             <JoinRoomDialog />

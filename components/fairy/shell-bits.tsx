@@ -4,7 +4,7 @@ import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Page chrome, per the sample's study page: an uppercase deep-rose eyebrow, a
+ * Page chrome, per the sample's study page: a deep-rose eyebrow, a
  * tight-tracked heading, a relaxed lede, and a hairline rule underneath.
  */
 export function PageHeader({
@@ -24,7 +24,7 @@ export function PageHeader({
   const heading = (
     <>
       {eyebrow && (
-        <p className="mb-2.5 text-[11px] font-bold tracking-[0.14em] text-fairy-rose uppercase">
+        <p className="mb-2.5 text-[11px] font-bold text-fairy-rose">
           {eyebrow}
         </p>
       )}

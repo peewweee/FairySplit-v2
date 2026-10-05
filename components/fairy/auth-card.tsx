@@ -11,18 +11,22 @@ export function AuthCard({
   children,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   notice?: string;
   children: ReactNode;
 }) {
   return (
     <div className="mx-auto w-full max-w-[380px] py-6">
-      <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-fairy-ink">
-        {title}
-      </h1>
-      <p className="mt-1.5 mb-6 text-[13px] leading-[1.55] font-medium text-fairy-grey-strong">
-        {subtitle}
-      </p>
+      <div className="mb-6 text-center">
+        <h1 className="text-[24px] font-extrabold tracking-[-0.02em] text-fairy-ink">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="mt-1.5 text-[13px] leading-[1.55] font-medium text-fairy-grey-strong">
+            {subtitle}
+          </p>
+        )}
+      </div>
 
       {notice && (
         <p
@@ -46,7 +50,7 @@ export function OrDivider() {
   return (
     <div aria-hidden className="my-4 flex items-center gap-3">
       <span className="h-px flex-1 bg-fairy-hair" />
-      <span className="text-[11px] font-bold tracking-[0.04em] text-fairy-grey uppercase">
+      <span className="text-[11px] font-bold text-fairy-grey">
         or
       </span>
       <span className="h-px flex-1 bg-fairy-hair" />

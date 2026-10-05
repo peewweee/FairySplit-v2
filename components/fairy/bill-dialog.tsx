@@ -268,9 +268,6 @@ export function BillDialog({
           {errors.name && (
             <p className="text-[11.5px] font-semibold text-fairy-danger">{errors.name}</p>
           )}
-          <DialogDescription>
-            Customize your bill and make the split more precise.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
@@ -323,11 +320,7 @@ export function BillDialog({
               <Label htmlFor="bill-roundup" className="text-[12.5px] font-bold text-fairy-ink">
                 Round up to the peso
               </Label>
-              <p className="mt-0.5 text-[11.5px] font-medium text-fairy-grey">
-                {roundedPreview !== null && parsedTotalPreview.ok
-                  ? `Collect ${formatCentavos(roundedPreview)} instead of ${formatCentavos(parsedTotalPreview.value)}.`
-                  : "Collect whole pesos so nobody owes a centavo."}
-              </p>
+
             </div>
             <Switch id="bill-roundup" checked={roundUp} onCheckedChange={setRoundUp} />
           </div>
@@ -363,18 +356,14 @@ export function BillDialog({
             />
           </div>
 
-          <p className="text-[11.5px] font-medium text-fairy-grey">
-            {covered === null ? (
-              "Pick both dates and the days are counted for you."
-            ) : (
-              <>
-                Covers{" "}
-                <span className="font-bold text-fairy-ink" data-numeric>
-                  {covered} {covered === 1 ? "day" : "days"}
-                </span>
-              </>
-            )}
-          </p>
+          {covered !== null && (
+            <p className="text-[11.5px] font-medium text-fairy-grey">
+              Covers{" "}
+              <span className="font-bold text-fairy-ink" data-numeric>
+                {covered} {covered === 1 ? "day" : "days"}
+              </span>
+            </p>
+          )}
 
           <Field
             id="bill-due"
@@ -493,7 +482,7 @@ function CollapsibleSection({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls={panelId}
-        className="flex w-full items-center gap-1.5 text-[11px] font-bold tracking-[0.14em] text-fairy-rose uppercase"
+        className="flex w-full items-center gap-1.5 text-[11px] font-bold text-fairy-rose"
       >
         {icon}
         {title}
@@ -550,12 +539,7 @@ function ApplianceDrafts({
 
   return (
     <div className="grid gap-2">
-      {drafts.length === 0 && !adding && (
-        <p className="text-[11.5px] font-medium text-fairy-grey">
-          Add the fridge to share it equally, or the aircon to charge it to whoever
-          ran it. You can log the hours once the bill is open.
-        </p>
-      )}
+
 
       {drafts.map((draft) => (
         <div
@@ -689,13 +673,6 @@ function ChargeDrafts({
 
   return (
     <div className="grid gap-2">
-      {drafts.length === 0 && !adding && (
-        <p className="text-[11.5px] font-medium text-fairy-grey">
-          A late fee, a reconnection charge — anything on the bill that isn&rsquo;t
-          usage. Most months there aren&rsquo;t any.
-        </p>
-      )}
-
       {drafts.map((draft) => (
         <div
           key={draft.key}
@@ -705,8 +682,8 @@ function ChargeDrafts({
             <div className="truncate text-[13px] font-bold text-fairy-ink">{draft.label}</div>
             <div className="text-[11.5px] font-medium text-fairy-grey">
               {draft.participantIds === null
-                ? "Everyone, equally"
-                : `${describeParticipants(members, draft.participantIds)}, equally`}
+                ? "Everyone"
+                : `${describeParticipants(members, draft.participantIds)}`}
             </div>
           </div>
           <span className="shrink-0 text-[13px] font-bold tabular-nums text-fairy-ink">
@@ -763,11 +740,7 @@ function ChargeDrafts({
                 Only some people
               </SplitChoice>
             </div>
-            {everyone ? (
-              <p className="text-[11.5px] font-medium text-fairy-grey">
-                Split equally, and it keeps up if someone joins the room later.
-              </p>
-            ) : (
+            {!everyone && (
               <ParticipantPicker
                 members={members}
                 selected={participants}

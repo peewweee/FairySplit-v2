@@ -363,7 +363,7 @@ function CopyRow({
 
   return (
     <div className="grid gap-1.5 border border-fairy-hair bg-fairy-screen px-3 py-2.5">
-      <span className="text-[10.5px] font-bold tracking-[0.1em] text-fairy-grey-strong uppercase">
+      <span className="text-[10.5px] font-bold text-fairy-grey-strong">
         {label}
       </span>
       <div className={cn("gap-2", multiline ? "grid" : "flex items-center")}>

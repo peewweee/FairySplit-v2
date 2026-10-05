@@ -35,8 +35,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
 
   return (
     <AuthCard
-      title="Welcome back"
-      subtitle="Sign in to reach your rooms from any device."
+      title="Welcome back!"
       notice={notice}
     >
       <div className="grid gap-2.5">

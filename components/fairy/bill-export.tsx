@@ -298,17 +298,16 @@ async function drawSheet(sheet: Sheet): Promise<Blob | null> {
     cells: string[],
     rowTop: number,
     height_: number,
-    opts: { bold?: boolean; colour?: string; size?: number; upper?: boolean },
+    opts: { bold?: boolean; colour?: string; size?: number },
   ) => {
     let x = pad;
     cells.forEach((cell, i) => {
       ctx.fillStyle = opts.colour ?? INK;
       ctx.font = `${opts.bold ? 700 : 600} ${opts.size ?? 13}px ${FONT}`;
-      const text = opts.upper ? cell.toUpperCase() : cell;
       // First column reads left; every money column reads right, so the digits
       // line up the way they do on screen.
-      const tx = i === 0 ? x + cellPad : x + widths[i] - cellPad - ctx.measureText(text).width;
-      ctx.fillText(text, tx, rowTop + height_ / 2 + 4.5);
+      const tx = i === 0 ? x + cellPad : x + widths[i] - cellPad - ctx.measureText(cell).width;
+      ctx.fillText(cell, tx, rowTop + height_ / 2 + 4.5);
       x += widths[i];
     });
   };
@@ -316,7 +315,7 @@ async function drawSheet(sheet: Sheet): Promise<Blob | null> {
   // Header
   ctx.fillStyle = TINT;
   ctx.fillRect(pad, y, tableW, headH);
-  drawRow(head, y, headH, { bold: true, colour: ROSE, size: 10.5, upper: true });
+  drawRow(head, y, headH, { bold: true, colour: ROSE, size: 10.5 });
   y += headH;
 
   // Body

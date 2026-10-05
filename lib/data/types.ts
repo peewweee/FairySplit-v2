@@ -36,19 +36,16 @@ export const BILL_KIND_META: Record<
 > = {
   electricity: {
     label: "Electricity",
-    hint: "Add a rate to charge aircon or laundry use to whoever ran it.",
     itemizable: true,
     datesRequired: true,
   },
   water: {
     label: "Water",
-    hint: "Split by the hours each person stayed.",
     itemizable: false,
     datesRequired: true,
   },
   other: {
     label: "Others",
-    hint: "Anything else (internet, dues, a one-off). Dates are optional.",
     itemizable: false,
     datesRequired: false,
   },

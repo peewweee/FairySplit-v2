@@ -53,7 +53,6 @@ export function BillsPanel({ roomId, members }: { roomId: string; members: Membe
         <EmptyState
           icon={<Receipt className="size-5" aria-hidden />}
           title="No bills yet"
-          description="Add the electric bill, the water bill, the internet — anything you split. Each one carries its own dates, and counts the hours logged inside them."
           action={<NewBillDialog roomId={roomId} members={members} />}
           className="py-10"
         />

@@ -595,7 +595,7 @@ function TodayLabel({ accent = false }: { accent?: boolean }) {
   return (
     <p
       className={cn(
-        "mb-1 text-[10px] font-bold tracking-[0.13em] uppercase",
+        "mb-1 text-[10px] font-bold",
         accent ? "text-fairy-tint-ink" : "text-fairy-grey-strong",
       )}
     >
