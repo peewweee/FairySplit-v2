@@ -42,6 +42,6 @@ describe("signInProblem", () => {
 
   it("treats a cancelled Google or Facebook sign-in the same way: no harm done", () => {
     expect(signInProblem("google-cancelled", false)).toBe(signInProblem("facebook-cancelled", false));
-    expect(signInProblem("google-cancelled", false)).toContain("nothing was signed in");
+    expect(signInProblem("google-cancelled", false)).toContain("Nothing was signed in");
   });
 });

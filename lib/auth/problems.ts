@@ -22,7 +22,7 @@ export function signInProblem(code: unknown, emailPasswordEnabled: boolean): str
       return "That confirmation link has expired or was already used. Sign in, or create the account again.";
     case "google-cancelled":
     case "facebook-cancelled":
-      return "No problem — nothing was signed in. Try again whenever.";
+      return "Nothing was signed in. Try again whenever.";
     case "google-unavailable":
       return `Google sign-in did not come back to us properly. ${retry}`;
     case "facebook-unavailable":

@@ -116,7 +116,7 @@ export function BillExportButton({
           <DialogHeader>
             <DialogTitle className="text-[21px] text-fairy-ink">Share this split</DialogTitle>
             <DialogDescription>
-              {bill.name} — {describeCoverage(bill)}
+              {bill.name},  {describeCoverage(bill)}
             </DialogDescription>
           </DialogHeader>
 
@@ -124,22 +124,19 @@ export function BillExportButton({
             <ExportChoice
               icon={<ImageIcon className="size-4" aria-hidden />}
               title="Download image"
-              detail="A PNG of the table, ready to paste into a chat."
               disabled={busy}
               onSelect={() => void saveImage()}
             />
             <ExportChoice
               icon={<FileText className="size-4" aria-hidden />}
               title="Save as PDF"
-              detail="Opens your browser's print dialog — choose Save as PDF."
               disabled={busy}
               onSelect={savePdf}
             />
             {canShareFiles() && (
               <ExportChoice
                 icon={<Share2 className="size-4" aria-hidden />}
-                title="Share image…"
-                detail="Send it straight to another app."
+                title="Share image"
                 disabled={busy}
                 onSelect={() => void shareImage()}
               />
@@ -162,7 +159,7 @@ function ExportChoice({
 }: {
   icon: React.ReactNode;
   title: string;
-  detail: string;
+  detail?: string;
   disabled?: boolean;
   onSelect: () => void;
 }) {
@@ -178,9 +175,11 @@ function ExportChoice({
         <span className="block text-[13px] font-bold tracking-[-0.01em] text-fairy-ink">
           {title}
         </span>
-        <span className="mt-0.5 block text-[11.5px] leading-[1.45] font-medium text-fairy-grey-strong">
-          {detail}
-        </span>
+        {detail && (
+          <span className="mt-0.5 block text-[11.5px] leading-[1.45] font-medium text-fairy-grey-strong">
+            {detail}
+          </span>
+        )}
       </span>
       <Download className="mt-0.5 ml-auto size-3.5 shrink-0 text-fairy-hair-2" aria-hidden />
     </button>
