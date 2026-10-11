@@ -338,14 +338,14 @@ function inviteMessage(roomName: string, code: string): string {
   if (!code) return "";
   const name = roomName.trim() || "our room";
   return [
-    `Join ${name} on FairySplit — we split the bills by the hours each of us actually stayed.`,
+    `Join '${name}' on FairySplit. We split the bills by the hours each of us actually stayed.`,
     "",
     `Room code: ${code}`,
     inviteLink(code),
   ].join("\n");
 }
 
-/** A value you are meant to take away, with one button that takes it. */
+/** A value you are meant to take away, with one button that takes it, under it. */
 function CopyRow({
   label,
   value,
@@ -367,10 +367,10 @@ function CopyRow({
       <span className="text-[10.5px] font-bold text-fairy-grey-strong">
         {label}
       </span>
-      <div className={cn("gap-2", multiline ? "grid" : "flex items-center")}>
+      <div className="grid gap-2">
         <span
           className={cn(
-            "min-w-0 flex-1 text-[12.5px] text-fairy-ink",
+            "min-w-0 text-[12.5px] text-fairy-ink",
             multiline
               ? "leading-[1.5] font-medium whitespace-pre-wrap"
               : "truncate font-semibold",
@@ -390,7 +390,7 @@ function CopyRow({
             });
           }}
           aria-label={copyLabel}
-          className={cn("shrink-0", multiline && "justify-self-start")}
+          className="justify-self-end"
         >
           {copied ? (
             <Check className="size-3.5 text-fairy-moss" aria-hidden />

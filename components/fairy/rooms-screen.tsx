@@ -218,7 +218,7 @@ function JoinRoomDialog() {
         <DialogHeader>
           <DialogTitle className="text-[21px] text-fairy-ink">Join a room</DialogTitle>
           <DialogDescription>
-            Six characters, no zeros or ones. Ask a housemate — the code is in
+            Ask a housemate. The code is in
             their room&rsquo;s settings.
           </DialogDescription>
         </DialogHeader>
