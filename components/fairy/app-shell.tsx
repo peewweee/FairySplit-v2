@@ -1,13 +1,27 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AccountMenu } from "@/components/fairy/account-menu";
+import { AppSidebar } from "@/components/fairy/app-sidebar";
 import { WhoAreYou } from "@/components/fairy/who-are-you";
+import { getUser } from "@/lib/auth/dal";
+
+/**
+ * The hamburger, for somebody signed in. A Server Component for the same reason
+ * <AccountMenu> is: the server already knows who is asking, so a signed-out
+ * visitor is never shown a menu that has nothing to open.
+ */
+async function MenuButton() {
+  const user = await getUser();
+  if (!user) return null;
+  return <AppSidebar accountName={user.displayName || user.email} email={user.email} />;
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-fairy-hair bg-fairy-ground">
         <div className="mx-auto flex w-full max-w-[1180px] items-center gap-3 px-5 py-3.5 sm:px-6">
+          <MenuButton />
           <Link href="/" className="shrink-0">
             <Wordmark />
           </Link>

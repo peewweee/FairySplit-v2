@@ -77,7 +77,7 @@ export function Crumbs({ items }: { items: { label: string; href?: string }[] })
     >
       {items.map((item, i) => (
         <span key={i} className="flex items-center gap-1">
-          {i > 0 && <ChevronRight className="size-3 text-fairy-hair-2" aria-hidden />}
+          {i > 0 && <ChevronRight className="size-3.5 text-fairy-grey/60" aria-hidden />}
           {item.href ? (
             <Link
               href={item.href}
