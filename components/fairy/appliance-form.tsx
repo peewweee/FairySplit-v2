@@ -467,6 +467,7 @@ function PerMonthConverter({
             value={hours}
             onChange={setHours}
             placeholder="e.g. 9"
+            suffix="hours"
             inputMode="decimal"
           />
         )}
