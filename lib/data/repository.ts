@@ -176,8 +176,19 @@ export interface Repository {
   /** No-op if this person's clock is already running. `chargedTo` defaults to
    *  just them, and is remembered until the run is stopped. */
   startClock(trackerId: string, memberId: string, chargedTo?: string[]): Promise<Tracker>;
-  /** Closes the open run into an entry. No-op if nothing is running. */
+  /** Closes the open run into an entry, or one entry per day if it crossed
+   *  midnight. No-op if nothing is running. */
   stopClock(trackerId: string, memberId: string): Promise<Tracker>;
+  /**
+   * Cuts the open run at every local midnight it has crossed, so each day gets
+   * an entry of its own — 7:10 PM to 11:59 PM, then 12:00 AM onward — instead of
+   * one run spanning days. The clock carries on from the last midnight. No-op if
+   * nothing is running or no midnight has been crossed.
+   *
+   * `stopClock` does this first by itself; this exists so a clock that is left
+   * on shows up in the logs day by day without waiting to be stopped.
+   */
+  checkpointClock(trackerId: string, memberId: string): Promise<Tracker>;
   /** A typed amount, in the tracker's own unit. */
   /** `occurredAt` is the day it counts on; it defaults to now. */
   addLogEntry(

@@ -13,6 +13,7 @@ import {
   dayKeyOf,
   formatDuration,
   formatQuantity,
+  midnightsBetween,
   nextMidnight,
   runningSince,
   todayFor,
@@ -356,6 +357,19 @@ function TrackerCard({
   const openedAt = runningSince(tracker, me.id);
   const now = useNow(Boolean(openedAt));
   const mine = tracker.entries.filter((e) => e.participantIds.includes(me.id));
+
+  // A clock left on past midnight is cut into one entry per day, so the logs
+  // read 7:10 PM–11:59 PM and then 12:00 AM onward instead of one run spanning
+  // days. Checked when the card opens and once a minute after — not every tick —
+  // so an attempt that came to nothing (a dropped connection, a device clock a
+  // moment ahead of the server's) is simply tried again. Once a cut lands the run
+  // restarts at midnight, there is nothing left to cut, and this goes quiet.
+  const minute = Math.floor(now / 60_000);
+  useEffect(() => {
+    if (!openedAt || midnightsBetween(Date.parse(openedAt), Date.now()).length === 0) return;
+    // Best effort: stopping the clock makes the same cut, so a failure costs nothing.
+    repo.checkpointClock(tracker.id, me.id).catch(() => {});
+  }, [openedAt, minute, tracker.id, me.id]);
 
   return (
     <article

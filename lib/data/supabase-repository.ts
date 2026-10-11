@@ -1,7 +1,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/client";
-import { HISTORY_DAYS, isDuplicateSpan } from "@/lib/tracking/elapsed";
+import { HISTORY_DAYS, isDuplicateSpan, midnightsBetween } from "@/lib/tracking/elapsed";
 import type {
   ApplianceTemplate,
   ApplianceUse,
@@ -292,6 +292,7 @@ const WRITE_METHODS = new Set<string>([
   "reorderTrackers",
   "startClock",
   "stopClock",
+  "checkpointClock",
   "addLogEntry",
   "addClockEntry",
   "addClockEntries",
@@ -1120,12 +1121,58 @@ export class SupabaseRepository implements Repository {
   }
 
   async stopClock(trackerId: string, memberId: string): Promise<Tracker> {
+    // A run that crossed midnight is stored a day at a time. Best effort on
+    // purpose: if the cut cannot be made (a dropped connection, the database
+    // function not deployed yet) the clock must still stop, and one long entry
+    // — which a bill counts correctly anyway — beats a clock that will not stop.
+    try {
+      await this.cutAtMidnights(trackerId, memberId);
+    } catch {
+      // Falls through to the plain stop below.
+    }
     const { error } = await this.client.rpc("stop_clock", {
       p_tracker_id: trackerId,
       p_member_id: memberId,
     });
     if (error) fail(error);
     return this.getTracker(trackerId);
+  }
+
+  async checkpointClock(trackerId: string, memberId: string): Promise<Tracker> {
+    await this.cutAtMidnights(trackerId, memberId);
+    return this.getTracker(trackerId);
+  }
+
+  /**
+   * Cut the open run at every local midnight it has crossed.
+   *
+   * The cutoffs are worked out HERE, in the browser's timezone, because that is
+   * the timezone every other day boundary in the app is drawn in — the TODAY
+   * counter, the logs grouping, a bill's dates — and the database has no way to
+   * know it. The database still owns how much time has passed: it ignores any
+   * cutoff that is not between the run's start and its own clock, so a client
+   * cannot cut itself extra hours.
+   */
+  private async cutAtMidnights(trackerId: string, memberId: string): Promise<void> {
+    const { data, error } = await this.client
+      .from("tracker_runs")
+      .select("started_at")
+      .eq("tracker_id", trackerId)
+      .eq("member_id", memberId)
+      .maybeSingle();
+    if (error) fail(error);
+    if (!data) return;
+
+    const startedAt = Date.parse((data as Pick<TrackerRunRow, "started_at">).started_at);
+    const cutoffs = midnightsBetween(startedAt, Date.now());
+    if (cutoffs.length === 0) return;
+
+    const { error: cutError } = await this.client.rpc("checkpoint_clock", {
+      p_tracker_id: trackerId,
+      p_member_id: memberId,
+      p_cutoffs: cutoffs.map((ms) => new Date(ms).toISOString()),
+    });
+    if (cutError) fail(cutError);
   }
 
   async addLogEntry(

@@ -55,7 +55,14 @@ Then run [`supabase/verify-rls.sql`](supabase/verify-rls.sql). It makes two
 throwaway accounts and proves the privacy rules hold (see
 [Who can see what](#who-can-see-what)); run it again after any change to a
 policy. The files in `supabase/migrations/` are for databases created before
-those changes — a fresh `schema.sql` already contains them.
+those changes — a fresh `schema.sql` already contains them. Apply a new one
+**before** pushing the code that calls it.
+
+[`supabase/verify-checkpoint-clock.sql`](supabase/verify-checkpoint-clock.sql)
+does the same for the function that cuts a running clock at midnight (see
+[Logs](#logs)): it runs a 52-hour clock through it on throwaway data and rolls
+back if anything is off. Run it after applying
+`migrations/003_checkpoint_clock.sql`.
 
 ### 2. Turn on sign-in
 
@@ -109,6 +116,16 @@ Each log is fed one of two ways:
 The counter on a card is a **today** counter: it starts each local day at zero,
 and a run still going at midnight is split between the two days by overlap. The
 entries behind it are never touched — only the window that is added up.
+
+A clock left on past midnight is **recorded a day at a time**. Clock in at
+7:10 PM on the 10th and out at 3:30 AM on the 11th, and the logs show two
+entries: *7:10 PM–11:59 PM* on the 10th and *12:00 AM–3:30 AM* on the 11th. The
+cut is made by the app, in your timezone: at midnight if the app is open, the
+next time it is opened if not, and always when you clock out. It moves no hours
+from one day to another and changes no bill — bills already count a run by how
+much of it falls inside their dates — it only changes how the run is written
+down. A day's entry stops one millisecond short of midnight so that it reads
+11:59 PM; nobody is credited with that millisecond.
 
 Logs are drag-sortable (pointer events, so it works on touch; arrow keys do the
 same job from the grip). The order is stored on the room, so it is the same for
@@ -357,9 +374,13 @@ touch a row if you are a member of the room it belongs to**.
   the policies can call them — and they have to be definers, because a policy on
   `members` that queried `members` would recurse forever.
 - `anon` has no grants at all. The browser only ever holds the publishable key.
-- Creating and joining a room (`create_room`, `join_room`) and the three
-  operations that touch many rows (`start_clock`, `stop_clock`, `remove_member`)
-  are database functions, so they happen completely or not at all.
+- Creating and joining a room (`create_room`, `join_room`) and the operations
+  that touch many rows (`start_clock`, `stop_clock`, `checkpoint_clock`,
+  `remove_member`) are database functions, so they happen completely or not at
+  all. The clock functions read Postgres's own clock, not the browser's.
+  `checkpoint_clock` lets the browser say *where* to cut a run (it knows the
+  timezone) but never *how much* time has passed: a cutoff outside the run is
+  ignored.
 - [`supabase/verify-rls.sql`](supabase/verify-rls.sql) proves it: person B cannot
   read, write or delete anything in person A's room — and A can. Both halves
   matter, because a rule that blocks everybody would pass the first on its own.
@@ -451,7 +472,8 @@ lib/
                     date window, and the usage its logs supply
   tracking/
     elapsed.ts      pure: turning a running clock into a number. `now` is passed
-                    in, never read from the system. Also holds HISTORY_DAYS.
+                    in, never read from the system. Also holds HISTORY_DAYS and
+                    `midnightsBetween`, where a running clock gets cut.
     overlap.ts      pure: overlapping clock spans -> who shared each slice
   data/
     types.ts        the domain model
@@ -474,7 +496,8 @@ lib/
     numeric.ts      Zod: strict string -> number, then peso -> centavos
   site.ts           where invite links point
 
-supabase/           schema.sql, verify-rls.sql, migrations/
+supabase/           schema.sql, verify-rls.sql, verify-checkpoint-clock.sql,
+                    migrations/
 components/fairy/   the app's own components
 components/ui/      shadcn/ui primitives
 ```
@@ -600,17 +623,22 @@ product screens, so there is no dark palette to port.
 
 ## Tests
 
-`npm test` — **163 tests** in 11 files, all quick. No component is rendered and
+`npm test` — **191 tests** in 12 files, all quick. No component is rendered and
 nothing talks to a real database; everything below the UI is proven directly.
+The one thing it cannot reach is the SQL itself, which is what
+[`supabase/verify-rls.sql`](supabase/verify-rls.sql) and
+[`supabase/verify-checkpoint-clock.sql`](supabase/verify-checkpoint-clock.sql)
+are for.
 
 | File | Tests | Covers |
 |---|---|---|
 | `lib/billing/engine.test.ts` | 32 | the ladder, the property run, scaling, the overflow guard |
 | `lib/billing/from-bill.test.ts` | 34 | the bill's date window, usage drawn from logs, overrides, shared entries, overlapping use |
 | `lib/billing/money.test.ts` | 20 | centavos, millicents, largest-remainder, equal shares |
-| `lib/tracking/elapsed.test.ts` | 38 | the daily reset, midnight-spanning runs, per-person shares, duplicate detection |
+| `lib/tracking/elapsed.test.ts` | 48 | the daily reset, midnight-spanning runs, where a run is cut (including across a daylight-saving change), per-person shares, duplicate detection |
 | `lib/tracking/overlap.test.ts` | 11 | splitting overlapping clock spans |
-| `lib/data/supabase-repository.test.ts` | 5 | "which member is me" is answered by account |
+| `lib/data/supabase-repository.test.ts` | 14 | "which member is me" is answered by account; a clock is cut before it is stopped, and still stops if the cut fails |
+| `lib/data/local-repository.test.ts` | 9 | a run across midnight becomes one entry per day: where each ends, who it is charged to, nothing lost |
 | `lib/auth/*.test.ts` | 18 | an invite surviving sign-in: cleaning the code, the cookie, the callback |
 | `lib/site.test.ts` | 4 | invite links never point at localhost |
 | `components/fairy/share-table.test.ts` | 1 | the share table's column builder |
@@ -628,8 +656,9 @@ Highlights:
 - **The shares of an entry add back up to the whole of it** — the property that
   keeps a bill reconciling once entries are shared between people.
 - **A run crossing midnight** gives two hours to each day rather than four to
-  whichever end you looked at. Built from local-date constructors, so the suite
-  passes in any timezone.
+  whichever end you looked at, and a clock left on across midnight is *recorded*
+  a day at a time. Built from local-date constructors, so the suite passes in any
+  timezone; the daylight-saving cases switch the zone themselves.
 - **Overlaps**, hand-traced before they were trusted: the 2–4 pm and 3–5 pm
   example, a three-way overlap, and two spans that touch without overlapping.
 - **Two people called Phoebe** each get their own row, and a renamed header
@@ -640,9 +669,9 @@ Highlights:
 
 The engine's suite was written before the engine and verified by mutation:
 reverting step 5 to the naive "zero the residual, leave the carve-outs" version
-fails three tests, including the property run. The identity, invite and
-share-table tests were each checked the same way — put the bug back, watch them
-fail.
+fails three tests, including the property run. The identity, invite,
+share-table and midnight-cut tests were each checked the same way — put the bug
+back, watch them fail.
 
 ---
 
@@ -670,6 +699,12 @@ Written down rather than papered over.
 
 - **Old log entries are hidden, not deleted.** After 120 days they stop counting
   and stop showing, but nothing removes the rows from the database yet.
+- **A clock is cut at midnight by the app, not by the server.** One left on with
+  the app closed stays a single open run until somebody opens the app or clocks
+  out; a scheduled job would fix that but needs to know each room's timezone.
+  A span typed in after the fact that crosses midnight is also still stored as
+  one entry. Entries recorded before the cut existed were split once, in a
+  one-off pass on 11 October 2026.
 - **Facebook and email + password sign-in are off**, for the reasons
   [above](#signing-in). Google is the only way in.
 - **A join code cannot be changed.** Anyone who holds a room's code can join it.

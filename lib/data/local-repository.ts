@@ -12,7 +12,7 @@ import type {
 } from "@/lib/data/types";
 import { OCCUPANCY_TRACKER_NAME } from "@/lib/data/types";
 import { HOURS_PER_DAY } from "@/lib/billing/occupancy";
-import { HISTORY_DAYS, isDuplicateSpan } from "@/lib/tracking/elapsed";
+import { HISTORY_DAYS, isDuplicateSpan, midnightsBetween } from "@/lib/tracking/elapsed";
 import {
   RepositoryError,
   type ApplianceInput,
@@ -319,6 +319,40 @@ function requireTracker(db: FairyDb, id: string): Tracker {
   const tracker = db.trackers[id];
   if (!tracker) throw new RepositoryError("That log no longer exists.");
   return tracker;
+}
+
+/**
+ * Close one finished entry for every local day an open run has crossed, and
+ * move the run's start up to the last midnight so it carries on from there.
+ *
+ * The same shape SupabaseRepository gets from its `checkpoint_clock` function:
+ * a day's entry stops one millisecond short of the next midnight, so it reads
+ * 11:59 PM, and the next one starts at 12:00 AM exactly. Whoever the run was
+ * charged to when it began is who every piece is charged to.
+ */
+function cutRunAtMidnights(tracker: Tracker, memberId: string, nowMs: number): void {
+  const openedAt = tracker.runningSince[memberId];
+  if (!openedAt) return;
+  let from = Date.parse(openedAt);
+  const cutoffs = midnightsBetween(from, nowMs);
+  if (cutoffs.length === 0) return;
+
+  const chargedTo = tracker.runningWith?.[memberId];
+  for (const cutoff of cutoffs) {
+    const to = cutoff - 1;
+    if (to > from) {
+      tracker.entries.push({
+        id: newId(),
+        participantIds: chargedTo?.length ? [...chargedTo] : [memberId],
+        quantity: (to - from) / 3_600_000,
+        startedAt: new Date(from).toISOString(),
+        endedAt: new Date(to).toISOString(),
+        createdAt: new Date(to).toISOString(),
+      });
+    }
+    from = cutoff;
+  }
+  tracker.runningSince[memberId] = new Date(from).toISOString();
 }
 
 /**
@@ -952,9 +986,12 @@ export class LocalRepository implements Repository {
   async stopClock(trackerId: string, memberId: string): Promise<Tracker> {
     return mutate((db) => {
       const tracker = requireTracker(db, trackerId);
-      const startedAt = tracker.runningSince[memberId];
-      if (!startedAt) return clone(tracker);
+      if (!tracker.runningSince[memberId]) return clone(tracker);
       const endedAt = new Date().toISOString();
+      // Days already behind the run get an entry of their own; what is left
+      // below is the piece that began at the last midnight.
+      cutRunAtMidnights(tracker, memberId, Date.parse(endedAt));
+      const startedAt = tracker.runningSince[memberId];
       const hours = Math.max(0, (Date.parse(endedAt) - Date.parse(startedAt)) / 3_600_000);
       const chargedTo = tracker.runningWith?.[memberId];
       delete tracker.runningSince[memberId];
@@ -971,6 +1008,14 @@ export class LocalRepository implements Repository {
           createdAt: endedAt,
         });
       }
+      return clone(tracker);
+    });
+  }
+
+  async checkpointClock(trackerId: string, memberId: string): Promise<Tracker> {
+    return mutate((db) => {
+      const tracker = requireTracker(db, trackerId);
+      cutRunAtMidnights(tracker, memberId, Date.now());
       return clone(tracker);
     });
   }

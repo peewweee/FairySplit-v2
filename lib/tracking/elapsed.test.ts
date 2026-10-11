@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   amountToday,
   dayBounds,
@@ -8,6 +8,7 @@ import {
   formatQuantity,
   hoursSince,
   isDuplicateSpan,
+  midnightsBetween,
   runningCount,
   nextMidnight,
   settledFor,
@@ -177,6 +178,106 @@ describe("dayBounds / dayKeyOf / nextMidnight", () => {
 
   it("next midnight is the end of today", () => {
     expect(nextMidnight(local(13))).toBe(dayBounds(local(13)).end);
+  });
+});
+
+describe("midnightsBetween", () => {
+  it("is empty for a run that stays inside one day", () => {
+    expect(midnightsBetween(local(9), local(17))).toEqual([]);
+  });
+
+  it("finds the one midnight an overnight run crosses", () => {
+    // In at 7:10 PM on the 22nd, read at 3:30 AM on the 23rd.
+    expect(midnightsBetween(local(19, 10), local(3, 30, 23))).toEqual([local(0, 0, 23)]);
+  });
+
+  it("finds every midnight a run left on for days has crossed, oldest first", () => {
+    // In just after midnight on the 22nd, still going at 4:21 AM on the 24th.
+    expect(midnightsBetween(local(0, 13), local(4, 21, 24))).toEqual([
+      local(0, 0, 23),
+      local(0, 0, 24),
+    ]);
+  });
+
+  it("does not count the midnight a run began on", () => {
+    expect(midnightsBetween(local(0, 0), local(15))).toEqual([]);
+  });
+
+  it("counts a midnight that has just arrived, but not one a moment away", () => {
+    expect(midnightsBetween(local(22), local(0, 0, 23))).toEqual([local(0, 0, 23)]);
+    expect(midnightsBetween(local(22), local(0, 0, 23) - 1)).toEqual([]);
+  });
+
+  it("is empty when the device clock has moved backwards or the start is nonsense", () => {
+    expect(midnightsBetween(local(22), local(9))).toEqual([]);
+    expect(midnightsBetween(Number.NaN, local(9))).toEqual([]);
+  });
+
+  it("stops at the limit rather than listing years of midnights", () => {
+    const years = new Date(2030, 7, 22, 9).getTime();
+    expect(midnightsBetween(local(9), years, 5)).toHaveLength(5);
+    expect(midnightsBetween(local(9), years)).toHaveLength(400);
+  });
+
+  it("lands on a local midnight every day of a year, whatever the clocks do in between", () => {
+    const cuts = midnightsBetween(
+      new Date(2026, 0, 1, 12).getTime(),
+      new Date(2027, 0, 1, 12).getTime(),
+    );
+    expect(cuts).toHaveLength(365);
+    cuts.forEach((ms, i) => {
+      expect(dayBounds(ms).start).toBe(ms);
+      if (i === 0) return;
+      const hours = (ms - cuts[i - 1]) / 3_600_000;
+      expect(hours).toBeGreaterThanOrEqual(23);
+      expect(hours).toBeLessThanOrEqual(25);
+    });
+  });
+});
+
+describe("midnightsBetween across a daylight-saving change", () => {
+  // This machine may sit in a zone that never changes its clocks, so the zone is
+  // switched here. Node honours that at runtime; it goes back by NAME afterwards
+  // because deleting TZ does not restore the system zone on every platform.
+  const system = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  beforeAll(() => {
+    process.env.TZ = "America/New_York";
+  });
+  afterAll(() => {
+    process.env.TZ = system;
+  });
+
+  const clocksChange = () =>
+    new Date(2026, 2, 8, 12).getTimezoneOffset() !== new Date(2026, 0, 8, 12).getTimezoneOffset();
+
+  it("still cuts at midnight on the 23-hour day the clocks spring forward", (ctx) => {
+    if (!clocksChange()) ctx.skip();
+    // US clocks went forward on 8 March 2026.
+    const cuts = midnightsBetween(
+      new Date(2026, 2, 7, 12).getTime(),
+      new Date(2026, 2, 10, 12).getTime(),
+    );
+    expect(cuts).toEqual([
+      new Date(2026, 2, 8).getTime(),
+      new Date(2026, 2, 9).getTime(),
+      new Date(2026, 2, 10).getTime(),
+    ]);
+    expect((cuts[1] - cuts[0]) / 3_600_000).toBe(23);
+  });
+
+  it("still cuts at midnight on the 25-hour day the clocks fall back", (ctx) => {
+    if (!clocksChange()) ctx.skip();
+    // ...and back on 1 November 2026.
+    const cuts = midnightsBetween(
+      new Date(2026, 9, 31, 12).getTime(),
+      new Date(2026, 10, 3, 12).getTime(),
+    );
+    expect(cuts).toEqual([
+      new Date(2026, 10, 1).getTime(),
+      new Date(2026, 10, 2).getTime(),
+      new Date(2026, 10, 3).getTime(),
+    ]);
+    expect((cuts[1] - cuts[0]) / 3_600_000).toBe(25);
   });
 });
 

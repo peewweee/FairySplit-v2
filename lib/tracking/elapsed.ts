@@ -116,6 +116,25 @@ export function nextMidnight(nowMs: number): number {
   return dayBounds(nowMs).end;
 }
 
+/**
+ * Every local midnight a run has crossed: strictly after it started, and no
+ * later than `endMs`. A run that begins exactly at midnight has not crossed
+ * that one; a run that is read at exactly midnight has crossed it.
+ *
+ * Walks `nextMidnight` rather than adding 24 hours, for the same
+ * daylight-saving reason `dayBounds` does. `limit` stops a run with a
+ * nonsensical start (a clock years wrong) from producing thousands of cuts.
+ */
+export function midnightsBetween(startMs: number, endMs: number, limit = 400): number[] {
+  const out: number[] = [];
+  let next = nextMidnight(startMs);
+  while (next <= endMs && out.length < limit) {
+    out.push(next);
+    next = nextMidnight(next);
+  }
+  return out;
+}
+
 /** Local calendar day as YYYY-MM-DD. Used to tell "is this still today?". */
 export function dayKeyOf(nowMs: number): string {
   const d = new Date(nowMs);
