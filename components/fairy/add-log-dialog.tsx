@@ -64,8 +64,7 @@ export function AddLogForm({
         <DialogHeader>
           <DialogTitle className="text-[21px] text-fairy-ink">Add a log</DialogTitle>
           <DialogDescription>
-            Anything you want counted — the aircon, the washer, a guest staying
-            over.
+            Anything you want counted and tracked: an air conditioner, a washing machine, or even a whole room. 
           </DialogDescription>
         </DialogHeader>
 
