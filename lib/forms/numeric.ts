@@ -121,7 +121,6 @@ const DAY_RULES: DecimalRules = {
   maxMessage: "A billing period longer than a year is probably a typo.",
   integer: true,
 };
-export const dayCountSchema = decimalSchema(DAY_RULES);
 /** Days-in-unit is always optional; blank means zero days (3.1). */
 export const optionalDayCountSchema = optionalDecimalSchema(DAY_RULES);
 
@@ -184,8 +183,8 @@ export const chargeAmountSchema = decimalSchema({
 export const optionalRateSchema = optionalDecimalSchema({
   emptyMessage: "",
   badMessage: "Type a rate, like 14.86",
-  max: 1_000,
-  maxMessage: "A rate over ₱1,000/kWh is almost certainly a typo.",
+  max: 100,
+  maxMessage: "A rate over ₱100/kWh is almost certainly a typo.",
   maxDecimals: 4,
   decimalsMessage: "Rates go to four decimal places at most.",
   positive: true,
@@ -193,13 +192,17 @@ export const optionalRateSchema = optionalDecimalSchema({
 
 /* -- logged quantities ---------------------------------------------------- */
 
-/** Hours stayed. Fractional, because a clock in/out gives 48.01 not 48. */
+/**
+ * Hours stayed. Fractional, because a clock in/out gives 48.01 not 48. Capped at the hours in
+ * the longest bill a form accepts (a year, see `DAY_RULES`); a bill's own, shorter window is
+ * what the engine's "stayed longer than the bill covers" warning is for.
+ */
 export const optionalHoursSchema = optionalDecimalSchema({
   emptyMessage: "",
   badMessage: "Type a number of hours, like 48.5",
   min: 0,
-  max: 100_000,
-  maxMessage: "That is more hours than the period can hold.",
+  max: 366 * 24,
+  maxMessage: "That is more hours than a year holds.",
 });
 
 /** A logged appliance quantity: hours or cycles, depending on the appliance. */
