@@ -521,7 +521,8 @@ dependency:
 
 - **Download image** — a PNG drawn on a canvas from the same columns the table
   renders. Not a screenshot: no UI chrome, sharp at 2×, and the same whatever the
-  page is scrolled to.
+  page is scrolled to. It opens with the FairySplit logo and the same rose rule as the PDF
+  (set in type instead if the logo file cannot be loaded, so it is never left with a hole).
 - **Save as PDF** — the browser's own print-to-PDF, of a page made for it:
   [`bill-print-sheet.tsx`](components/fairy/bill-print-sheet.tsx). The FairySplit
   logo and a rose rule, the room, the bill's name and period, the total in a tinted

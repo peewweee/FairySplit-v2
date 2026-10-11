@@ -233,7 +233,25 @@ const HAIR = "#f0e4e7";
 const HAIR_2 = "#e6d6db";
 const TINT = "#fcebf1";
 const ROSE = "#b5416b";
+const PINK = "#ef9bb8";
 const FONT = "'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif";
+
+/** The logo is `public/fairysplit-logo.svg`, 2697 x 543 as exported. */
+const LOGO_URL = "/fairysplit-logo.svg";
+const LOGO_ASPECT = 2697 / 543;
+
+/**
+ * The logo as something a canvas can draw, or null if it cannot be loaded. It is the same file
+ * the header shows, so it is already cached, and same-origin, so it cannot taint the canvas.
+ */
+function loadLogo(): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => resolve(null);
+    image.src = LOGO_URL;
+  });
+}
 
 /**
  * The table as a PNG, laid out from the same columns the screen uses.
@@ -264,11 +282,17 @@ async function drawSheet(sheet: Sheet): Promise<Blob | null> {
     return Math.ceil(max) + cellPad * 2;
   });
 
+  const logo = await loadLogo();
+
   const tableW = widths.reduce((a, w) => a + w, 0);
+  // The brand block (logo, then a rose rule) sits above the title, as on the PDF.
+  const logoH = 24;
+  const brandH = 58;
   const titleH = 78;
   const footerH = 34;
   const width = Math.max(tableW, 420) + pad * 2;
-  const height = pad + titleH + headH + rowH * body.length + rowH + footerH + pad;
+  const top = pad + brandH;
+  const height = top + titleH + headH + rowH * body.length + rowH + footerH + pad;
 
   // Draw at 2x so it stays sharp when someone pinches into it.
   const scale = 2;
@@ -282,21 +306,33 @@ async function drawSheet(sheet: Sheet): Promise<Blob | null> {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, width, height);
 
+  // Brand block: the logo, and a rose rule across the sheet under it. If the logo cannot be
+  // loaded the name is set in type instead, so the sheet is never left with a hole.
+  ctx.textBaseline = "alphabetic";
+  if (logo) {
+    ctx.drawImage(logo, pad, pad, logoH * LOGO_ASPECT, logoH);
+  } else {
+    ctx.fillStyle = ROSE;
+    ctx.font = `800 22px ${FONT}`;
+    ctx.fillText("FairySplit", pad, pad + 20);
+  }
+  ctx.fillStyle = PINK;
+  ctx.fillRect(pad, pad + logoH + 12, width - pad * 2, 2);
+
   // Title block
   ctx.fillStyle = INK;
   ctx.font = `800 22px ${FONT}`;
-  ctx.textBaseline = "alphabetic";
-  ctx.fillText(bill.name, pad, pad + 24);
+  ctx.fillText(bill.name, pad, top + 24);
 
   ctx.fillStyle = GREY;
   ctx.font = `500 13px ${FONT}`;
-  ctx.fillText(`${room.name} · ${describeCoverage(bill)}`, pad, pad + 44);
+  ctx.fillText(`${room.name} · ${describeCoverage(bill)}`, pad, top + 44);
 
   ctx.fillStyle = ROSE;
   ctx.font = `700 15px ${FONT}`;
-  ctx.fillText(formatCentavos(billedCentavos), pad, pad + 66);
+  ctx.fillText(formatCentavos(billedCentavos), pad, top + 66);
 
-  let y = pad + titleH;
+  let y = top + titleH;
 
   const drawRow = (
     cells: string[],
@@ -350,7 +386,7 @@ async function drawSheet(sheet: Sheet): Promise<Blob | null> {
 
   ctx.strokeStyle = HAIR_2;
   ctx.lineWidth = 1;
-  ctx.strokeRect(pad + 0.5, pad + titleH + 0.5, tableW - 1, y - pad - titleH - 1);
+  ctx.strokeRect(pad + 0.5, top + titleH + 0.5, tableW - 1, y - top - titleH - 1);
 
   ctx.fillStyle = GREY;
   ctx.font = `500 11px ${FONT}`;
