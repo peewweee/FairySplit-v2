@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { afterSignInPath, cleanJoinCode, loginPath } from "./join-intent";
+import { afterSignInPath, cleanJoinCode, landingPath } from "./join-intent";
 
 describe("cleanJoinCode", () => {
   it("accepts a real code, however it was typed", () => {
@@ -25,20 +25,27 @@ describe("cleanJoinCode", () => {
   });
 });
 
-describe("loginPath", () => {
-  it("is plain /login with nothing to carry", () => {
-    expect(loginPath(null)).toBe("/login");
+describe("landingPath", () => {
+  it("is the plain landing page with nothing to carry", () => {
+    expect(landingPath(null)).toBe("/");
   });
 
   it("remembers the invite", () => {
-    expect(loginPath("K7QM2P")).toBe("/login?join=K7QM2P");
+    expect(landingPath("K7QM2P")).toBe("/?join=K7QM2P");
   });
 
   it("keeps the invite alongside an error, so a retry still has it", () => {
-    expect(loginPath("K7QM2P", "google-cancelled")).toBe(
-      "/login?error=google-cancelled&join=K7QM2P",
+    expect(landingPath("K7QM2P", "google-cancelled")).toBe(
+      "/?error=google-cancelled&join=K7QM2P",
     );
-    expect(loginPath(null, "google-unavailable")).toBe("/login?error=google-unavailable");
+    expect(landingPath(null, "google-unavailable")).toBe("/?error=google-unavailable");
+  });
+
+  it("never points at a sign-in page, which no longer exists", () => {
+    for (const path of [landingPath(null), landingPath("K7QM2P", "link-expired")]) {
+      expect(path.startsWith("/login")).toBe(false);
+      expect(path.startsWith("/signup")).toBe(false);
+    }
   });
 });
 

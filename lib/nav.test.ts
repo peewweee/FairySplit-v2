@@ -14,7 +14,7 @@ describe("roomIdFromPath", () => {
     expect(roomIdFromPath("/")).toBeNull();
     expect(roomIdFromPath("/rooms")).toBeNull();
     expect(roomIdFromPath("/rooms/")).toBeNull();
-    expect(roomIdFromPath("/login")).toBeNull();
+    expect(roomIdFromPath("/auth/callback")).toBeNull();
     expect(roomIdFromPath("/privacy")).toBeNull();
     // A path that merely starts with the letters is not a room.
     expect(roomIdFromPath("/roomsmate/abc")).toBeNull();

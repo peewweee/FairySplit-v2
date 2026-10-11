@@ -25,13 +25,13 @@ import { NAME_MAX, parseField, personNameSchema } from "@/lib/forms/schemas";
  * member when you create a room, so the room isn't born empty.
  */
 /**
- * Routes where this must stay out of the way. Being asked "who are you?" on
- * top of a sign-in form is noise, and it opens itself unprompted on a first
- * visit — which is exactly when somebody is most likely to be on one of these
- * pages. The privacy policy and the data-deletion page are the same: whoever
- * opens them cold has to be able to read them.
+ * Routes where this must stay out of the way. It opens itself unprompted on a
+ * first visit, which is exactly when somebody is most likely to be reading the
+ * privacy policy or the data-deletion page: whoever opens those cold has to be
+ * able to read them. (Signed out there is no name to ask for at all, so the
+ * header never renders this for a visitor; see <SignedInActions>.)
  */
-const QUIET_ROUTES = ["/login", "/signup", "/auth", "/privacy", "/data-deletion"];
+const QUIET_ROUTES = ["/auth", "/privacy", "/data-deletion"];
 
 export function WhoAreYou() {
   const pathname = usePathname();

@@ -11,13 +11,16 @@ export function cleanJoinCode(raw: unknown): string | null {
   return [...code].every((ch) => JOIN_CODE_ALPHABET.includes(ch)) ? code : null;
 }
 
-/** The sign-in page, remembering the invite (and what went wrong) if there is one. */
-export function loginPath(invite: string | null, error?: string): string {
+/**
+ * The landing page — where "Clock me in" is — remembering the invite (and what
+ * went wrong) if there is one, so the sign-in popup can open on it.
+ */
+export function landingPath(invite: string | null, error?: string): string {
   const params = new URLSearchParams();
   if (error) params.set("error", error);
   if (invite) params.set("join", invite);
   const query = params.toString();
-  return query ? `/login?${query}` : "/login";
+  return query ? `/?${query}` : "/";
 }
 
 /** Where to land once signed in: the rooms page, with the Join dialog opened for an invite. */

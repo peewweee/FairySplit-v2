@@ -112,6 +112,6 @@ describe("signInWithGoogle", () => {
 
   it("keeps the invite for the retry if Google could not be started", async () => {
     world.oauthResult = { data: { url: null }, error: { message: "boom" } };
-    expect(await press({ join: "K7QM2P" })).toBe("/login?error=google-unavailable&join=K7QM2P");
+    expect(await press({ join: "K7QM2P" })).toBe("/?error=google-unavailable&join=K7QM2P");
   });
 });

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { JOIN_COOKIE, cleanJoinCode, loginPath } from "@/lib/auth/join-intent";
+import { JOIN_COOKIE, cleanJoinCode, landingPath } from "@/lib/auth/join-intent";
 import { signInSchema, signUpSchema } from "@/lib/auth/schemas";
 
 export interface AuthState {
@@ -149,7 +149,7 @@ export async function signOut(): Promise<void> {
   const supabase = await createClient();
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
-  redirect("/login");
+  redirect("/");
 }
 
 /**
@@ -184,7 +184,7 @@ export async function signInWithGoogle(formData: FormData): Promise<never> {
   });
 
   if (error || !data.url) {
-    redirect(loginPath(invite, "google-unavailable"));
+    redirect(landingPath(invite, "google-unavailable"));
   }
 
   redirect(data.url);
@@ -211,7 +211,7 @@ export async function signInWithFacebook(): Promise<never> {
   });
 
   if (error || !data.url) {
-    redirect("/login?error=facebook-unavailable");
+    redirect(landingPath(null, "facebook-unavailable"));
   }
 
   redirect(data.url);

@@ -1,20 +1,44 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { AccountMenu } from "@/components/fairy/account-menu";
 import { AppSidebar } from "@/components/fairy/app-sidebar";
+import { HeaderSignIn } from "@/components/fairy/header-sign-in";
+import { SignOutButton } from "@/components/fairy/sign-out-button";
 import { WhoAreYou } from "@/components/fairy/who-are-you";
 import { getUser } from "@/lib/auth/dal";
 
 /**
- * The hamburger, for somebody signed in. A Server Component for the same reason
- * <AccountMenu> is: the server already knows who is asking, so a signed-out
- * visitor is never shown a menu that has nothing to open.
+ * The hamburger, for somebody signed in. A Server Component because the server
+ * already knows who is asking, so a signed-out visitor is never shown a menu that
+ * has nothing to open.
  */
 async function MenuButton() {
   const user = await getUser();
   if (!user) return null;
   return <AppSidebar accountName={user.displayName || user.email} email={user.email} />;
+}
+
+/**
+ * The right-hand end of the header. Signed in: your name and the sign-out icon.
+ * Signed out: a "Sign in" on the landing page, which opens the same popup as the
+ * "Clock me in" button, and nothing at all elsewhere (no name to ask for from
+ * somebody who has no account yet).
+ */
+async function HeaderActions() {
+  const user = await getUser();
+  return (
+    <div className="ml-auto flex items-center gap-1">
+      {user ? (
+        <>
+          <WhoAreYou />
+          <span aria-hidden className="h-4 w-px bg-fairy-hair" />
+          <SignOutButton />
+        </>
+      ) : (
+        <HeaderSignIn />
+      )}
+    </div>
+  );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -26,11 +50,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/" className="shrink-0">
             <Wordmark />
           </Link>
-          <div className="ml-auto flex items-center gap-1">
-            <WhoAreYou />
-            <span aria-hidden className="h-4 w-px bg-fairy-hair" />
-            <AccountMenu />
-          </div>
+          <HeaderActions />
         </div>
       </header>
 

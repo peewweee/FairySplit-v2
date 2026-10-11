@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Loader2 } from "lucide-react";
@@ -19,9 +18,12 @@ const EMPTY: AuthState = {};
 export function AuthForm({
   mode,
   action,
+  onSwitchMode,
 }: {
   mode: "sign-in" | "sign-up";
   action: Action;
+  /** The other half of the form — sign in or create an account — without leaving the popup. */
+  onSwitchMode: () => void;
 }) {
   const [state, formAction] = useActionState(action, EMPTY);
   const signingUp = mode === "sign-up";
@@ -90,12 +92,13 @@ export function AuthForm({
 
       <p className="text-center text-[12px] font-medium text-fairy-grey-strong">
         {signingUp ? "Already have an account? " : "New here? "}
-        <Link
-          href={signingUp ? "/login" : "/signup"}
+        <button
+          type="button"
+          onClick={onSwitchMode}
           className="font-bold text-fairy-rose underline underline-offset-2"
         >
           {signingUp ? "Sign in" : "Create an account"}
-        </Link>
+        </button>
       </p>
     </form>
   );

@@ -73,20 +73,20 @@ describe("/auth/callback", () => {
   it("keeps the invite through a cancelled sign-in", async () => {
     world.cookies.set("fairysplit_join", "K7QM2P");
     expect(await comeBack("?error=access_denied")).toBe(
-      "/login?error=google-cancelled&join=K7QM2P",
+      "/?error=google-cancelled&join=K7QM2P",
     );
   });
 
   it("keeps the invite when there is no code or the swap fails", async () => {
     world.cookies.set("fairysplit_join", "K7QM2P");
-    expect(await comeBack("")).toBe("/login?error=google-unavailable&join=K7QM2P");
+    expect(await comeBack("")).toBe("/?error=google-unavailable&join=K7QM2P");
 
     world.exchangeError = { message: "bad verifier" };
-    expect(await comeBack("?code=abc")).toBe("/login?error=google-unavailable&join=K7QM2P");
+    expect(await comeBack("?code=abc")).toBe("/?error=google-unavailable&join=K7QM2P");
   });
 
-  it("sends a failed sign-in with no invite to a plain error page", async () => {
+  it("sends a failed sign-in with no invite back to the landing page with just the error", async () => {
     world.exchangeError = { message: "bad verifier" };
-    expect(await comeBack("?code=abc")).toBe("/login?error=google-unavailable");
+    expect(await comeBack("?code=abc")).toBe("/?error=google-unavailable");
   });
 });

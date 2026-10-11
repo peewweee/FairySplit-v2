@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
 
-import { JOIN_COOKIE, afterSignInPath, cleanJoinCode, loginPath } from "@/lib/auth/join-intent";
+import { JOIN_COOKIE, afterSignInPath, cleanJoinCode, landingPath } from "@/lib/auth/join-intent";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -27,18 +27,18 @@ export async function GET(request: NextRequest) {
   // Closing Google's window, or refusing the consent screen, lands here with
   // an error and no code. Not a fault worth alarming anybody about.
   if (oauthError) {
-    redirect(loginPath(invite, "google-cancelled"));
+    redirect(landingPath(invite, "google-cancelled"));
   }
 
   if (!code) {
-    redirect(loginPath(invite, "google-unavailable"));
+    redirect(landingPath(invite, "google-unavailable"));
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    redirect(loginPath(invite, "google-unavailable"));
+    redirect(landingPath(invite, "google-unavailable"));
   }
 
   // Signed in: the invite has done its job, so it must not linger and

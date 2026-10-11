@@ -35,12 +35,11 @@ export const getUser = cache(async (): Promise<SessionUser | null> => {
 });
 
 /**
- * For pages that make no sense signed out. Returns a user or does not return.
- * `signInPath` is where a signed-out visitor is sent, so a page can ask the
- * sign-in page to remember something (an invite) on its behalf.
+ * For pages that make no sense signed out. Returns a user or does not return: a
+ * signed-out visitor is sent to the landing page, where "Clock me in" is.
  */
-export async function requireUser(signInPath = "/login"): Promise<SessionUser> {
+export async function requireUser(): Promise<SessionUser> {
   const user = await getUser();
-  if (!user) redirect(signInPath);
+  if (!user) redirect("/");
   return user;
 }
