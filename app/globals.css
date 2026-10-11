@@ -283,6 +283,15 @@
     letter-spacing: -0.035em;
     font-variant-numeric: tabular-nums;
   }
+
+  /* The line of a sparkle on the landing page. Starts hidden, and is drawn on by
+     `sparkle-draw` at the pace and delay each sparkle sets for itself. */
+  .fs-sparkle-stroke {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: sparkle-draw var(--sparkle-seconds, 7s) ease-in-out var(--sparkle-delay, 0s)
+      infinite both;
+  }
 }
 
 @keyframes sparkle {
@@ -312,6 +321,30 @@
   }
 }
 
+/* A sparkle's line drawn on, held, then rubbed out the way the pen went. The stroke
+   is normalised to a length of 1 (pathLength="1" on the path), so these keyframes
+   serve every sparkle whatever its real length: an offset of 1 hides all of it, 0
+   shows all of it, and -1 hides it again from the other end.
+   A cycle begins, and ends, with nothing showing, which is what lets a sparkle move
+   itself to a new place when it starts over without anybody seeing it jump. */
+@keyframes sparkle-draw {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  28% {
+    stroke-dashoffset: 0;
+  }
+  64% {
+    stroke-dashoffset: 0;
+  }
+  84% {
+    stroke-dashoffset: -1;
+  }
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+
 /* Gate ALL motion. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -319,8 +352,17 @@
   *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
+    /* A delay is motion too: nobody who asked for less of it should sit looking at a
+       blank splash while its choreography waits to start. */
+    animation-delay: 0s !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* A sparkle that cannot be drawn on is simply there, whole, rather than gone. */
+  .fs-sparkle-stroke {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
   }
 }
 
