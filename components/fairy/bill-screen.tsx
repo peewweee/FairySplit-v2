@@ -96,11 +96,9 @@ function BillBody({
           { label: bill.name },
         ]}
       />
-      {/* The sample's hero: arc bleed, caption, a 29px amount, a meta row
-          separated by dots. The one loud element on the screen. */}
+      {/* The sample's hero: caption, a 29px amount, a meta row separated by
+          dots. The one loud element on the screen. */}
       <div className="fs-card mb-6 px-5 py-5">
-        <span className="fs-arc fs-arc-a" aria-hidden />
-        <span className="fs-arc fs-arc-b" aria-hidden />
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
           <div className="min-w-0">
             <p className="fs-lab mb-1.5">{bill.name}</p>

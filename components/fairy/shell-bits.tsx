@@ -137,7 +137,6 @@ export function EmptyState({
         className,
       )}
     >
-      <span className="fs-arc fs-arc-a" aria-hidden />
       {icon && (
         <div className="mx-auto mb-4 grid size-11 place-items-center bg-fairy-tint text-fairy-tint-ink">
           {icon}
@@ -177,8 +176,7 @@ export function ErrorNote({ children }: { children: ReactNode }) {
 }
 
 /**
- * A tinted callout. The sample's notice: pink tint, deep-rose text, an arc
- * bleeding off the corner, no border.
+ * A tinted callout. The sample's notice: pink tint, deep-rose text, no border.
  */
 export function Notice({
   icon,
@@ -196,18 +194,6 @@ export function Notice({
         tone === "ember" && "bg-fairy-ember-tint text-fairy-ember",
       )}
     >
-      <span
-        aria-hidden
-        className="fs-arc"
-        style={{
-          width: 88,
-          height: 88,
-          right: -34,
-          top: -30,
-          borderColor: "currentColor",
-          opacity: 0.2,
-        }}
-      />
       {icon && <span className="mt-px shrink-0">{icon}</span>}
       <div className="min-w-0 text-[12.5px] leading-[1.5] font-semibold">{children}</div>
     </div>

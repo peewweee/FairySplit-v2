@@ -224,25 +224,6 @@
     box-shadow: var(--shadow-card);
   }
 
-  /* Arc bleed — thin clipped circles at a card corner. The signature detail.
-     Decorative only; always aria-hidden and pointer-events-none. */
-  .fs-arc {
-    @apply pointer-events-none absolute rounded-full;
-    border: 1px solid var(--hair);
-  }
-  .fs-arc-a {
-    width: 118px;
-    height: 118px;
-    right: -52px;
-    top: -46px;
-  }
-  .fs-arc-b {
-    width: 74px;
-    height: 74px;
-    right: -16px;
-    top: -12px;
-  }
-
   /* The pink tick that opens every breakdown row. */
   .fs-tick {
     width: 17px;
@@ -264,9 +245,6 @@
   /* A tinted block: notices, status pills, helper callouts. */
   .fs-notice {
     @apply relative overflow-hidden bg-fairy-tint text-fairy-tint-ink;
-  }
-  .fs-notice .fs-arc {
-    border-color: rgba(181, 65, 107, 0.2);
   }
 
   /* A caption over a value — the sample's core stat unit. */
