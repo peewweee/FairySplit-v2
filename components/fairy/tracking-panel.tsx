@@ -375,12 +375,12 @@ function TrackerCard({
     <article
       ref={nodeRef}
       className={cn(
-        "relative rounded-xl p-3.5 sm:p-4",
+        "relative rounded-xl border p-3.5 sm:p-4",
         // The occupancy clock decides how every bill is weighted, so it is the
-        // one card that should catch your eye across a list of added logs.
-        tracker.builtIn
-          ? "border-2 border-fairy-pink bg-fairy-tint"
-          : cn("border bg-card", dragging ? "border-fairy-pink" : "border-fairy-hair"),
+        // one card that should catch your eye across a list of added logs. The
+        // pink fill does that; the edge is the same hairline every log has.
+        tracker.builtIn ? "bg-fairy-tint" : "bg-card",
+        dragging ? "border-fairy-pink" : "border-fairy-hair",
         dragging && "z-10 shadow-[0_14px_30px_rgba(28,21,24,0.18)]",
       )}
       style={{
@@ -553,8 +553,8 @@ function InOut({
       role="group"
       aria-label={`Clock in or out of ${label}`}
       className={cn(
-        "mt-4 flex w-full rounded-full border-2 p-1",
-        builtIn ? "border-fairy-pink bg-card" : "border-fairy-hair-2 bg-fairy-screen",
+        "mt-4 flex w-full rounded-full border-2 border-fairy-hair-2 p-1",
+        builtIn ? "bg-card" : "bg-fairy-screen",
       )}
     >
       <Half
