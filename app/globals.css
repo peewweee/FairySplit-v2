@@ -16,8 +16,9 @@
      2. LINE, NOT ELEVATION. Surfaces separate with a 1px hairline and almost no
         shadow. Outline buttons get a heavy 1.8px near-black stroke, not a
         timid grey one.
-     3. ONE TYPE FAMILY. Figtree throughout, including the wordmark. Headings
-        and money values track at -0.035em against relaxed 500-weight captions.
+     3. ONE TYPE FAMILY. Figtree throughout (the header logo is drawn artwork,
+        not type). Headings and money values track at -0.035em against relaxed
+        500-weight captions.
    ========================================================================= */
 :root {
   color-scheme: light;

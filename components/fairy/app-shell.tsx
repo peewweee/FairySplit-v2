@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AccountMenu } from "@/components/fairy/account-menu";
@@ -48,18 +49,23 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 /**
- * The wordmark sits in the app's own type, the way the reference sets its name
- * in Figtree rather than a separate logo face. Deep rose, then ink.
+ * The logo: `public/fairysplit-logo.svg`, exported from the design file. Its two
+ * colours are the palette's deep rose and ink. The file's viewBox is cropped to the
+ * artwork (the design frame has a wide margin that sits unevenly), so it lines up
+ * with the menu and the buttons without any nudging here. Width and height are the
+ * file's own, which keeps its space reserved while it loads; the height is what
+ * sets the size, a little smaller on a phone so the header holds what it held when
+ * this was text. Eager, because it is the first thing on every page.
  */
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <span
-      className={
-        className ??
-        "text-[20px] font-extrabold tracking-[-0.01em] text-fairy-rose"
-      }
-    >
-      Fairy<span className="text-fairy-ink">Split</span>
-    </span>
+    <Image
+      src="/fairysplit-logo.svg"
+      alt="FairySplit"
+      width={2697}
+      height={543}
+      loading="eager"
+      className={className ?? "h-5 w-auto sm:h-6"}
+    />
   );
 }

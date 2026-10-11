@@ -4,9 +4,9 @@ import "./globals.css";
 import { AppShell } from "@/components/fairy/app-shell";
 
 /**
- * One family, no exceptions — headings, body, the wordmark and the numbers all
- * sit in Figtree, the way the reference sets its own name in its own type
- * rather than a separate logo face.
+ * One family, no exceptions — headings, body and the numbers all sit in Figtree.
+ * The one thing that does not is the logo in the header: that is drawn artwork
+ * (an SVG), not type.
  */
 const figtree = Figtree({
   variable: "--font-figtree",
