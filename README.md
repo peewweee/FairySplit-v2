@@ -334,9 +334,28 @@ Accounts are Supabase Auth. **Google** is the live sign-in. **Facebook** and
 - Email + password needs a verified sending domain for its confirmation emails
   before it can work for anybody but the account's owner.
 
-Flip a flag and nothing else needs rebuilding. A person's profile name comes from
-the provider (or the signup form) when the account is created, and is what
-housemates see when they create or join a room.
+There is no sign-in page. Signed out, `/` is a splash — *The fairies are doing the
+math.* — with a **Clock me in** button and, at the top right, a quiet *Sign in*.
+Either opens the sign-in as a popup, *Welcome back!*: Google, plus Facebook and
+email + password when their flags are on. A sign-in that comes back unhappy reopens
+the popup on a short, calm message ([`lib/auth/problems.ts`](lib/auth/problems.ts)).
+`/login` and `/signup` just redirect to `/`, query and all, so an old link still
+lands somewhere.
+
+Behind the line, hand-drawn diamond sparkles draw themselves in and out. Each is
+one wobbly line traced round a four-pointed diamond
+([`lib/sparkle.ts`](lib/sparkle.ts)): it is drawn on, held for a moment, rubbed out
+the way the pen went, and then drawn somewhere else, at random, clear of the text.
+They lead the page. They are chosen on the server, once per visit, so they are in
+the page from the first paint and need no script to start. They set off one after
+another over the first second, in a scattered order, each beginning at a different
+corner of its diamond and some going the other way round; only then do the line
+(at 1.0 s) and the button (1.3 s) ease in. For anyone who has asked their device for
+less motion there is no waiting and no drawing: the sparkles simply sit there, whole.
+
+Flip a flag and the path appears in that popup; nothing else needs rebuilding. A
+person's profile name comes from the provider (or the signup form) when the
+account is created, and is what housemates see when they create or join a room.
 
 ### Rooms and people
 
@@ -368,8 +387,9 @@ offers the code and a whole invite message ready to paste, carrying a link,
 `…/?join=CODE`.
 
 - Opened **signed in**, the link opens the Join dialog with the code filled in.
-- Opened **signed out**, it takes you through sign-in and back to the dialog. The
-  code rides in a short-lived cookie across the trip to Google, not in the
+- Opened **signed out**, the landing page says you have been invited, and *Clock me
+  in* takes you through sign-in and back to the dialog. The code rides in a
+  short-lived cookie across the trip to Google, not in the
   redirect URL: Supabase only honours redirect URLs on its allow-list, and a
   changed one could quietly break sign-in for everyone.
   ([`lib/auth/join-intent.ts`](lib/auth/join-intent.ts) — only a real code ever
@@ -413,8 +433,10 @@ deleted while that room exists (`rooms.created_by` is `on delete restrict`).
 ## Screens
 
 ```
-/                                 rooms ("/?join=CODE" opens the join dialog)
-/login, /signup                   Google sign-in; already signed in → straight on
+/                                 signed in: rooms ("/?join=CODE" opens the join dialog)
+                                  signed out: the splash; "Clock me in" or "Sign in" opens
+                                  the sign-in popup
+/login, /signup                   no longer pages: they redirect to /
 /auth/callback                    where Google sends people back; swaps the code
                                   for a session
 /auth/confirm                     landing for an email-confirmation link
@@ -425,7 +447,7 @@ deleted while that room exists (`rooms.created_by` is `on delete restrict`).
 /rooms/[roomId]/bills/[billId]    the bill: your logs summary + the share table
 ```
 
-Signed out, every room page sends you to `/login`.
+Signed out, every room page sends you to `/`, the landing page.
 
 **The menu.** A hamburger at the left of the header opens a drawer: *Home* (the
 rooms page); your name, which you tap to change the name your housemates see,
@@ -479,7 +501,6 @@ takes files, a third option sends the image straight to another app.
 ```
 app/                              routes. Pages gate access on the server; every
                                   screen is a client component
-  login/ signup/                  sign-in
   auth/callback  auth/confirm     OAuth landing; email-link landing
   privacy/ data-deletion/         public pages
   rooms/[roomId]/…                room, logs history, settings, bills
@@ -514,7 +535,9 @@ lib/
     dal.ts          getUser / requireUser — the one place that answers "who is asking?"
     actions.ts      server actions: sign in/up/out, Google, Facebook
     config.ts       which sign-in paths the UI offers
-    join-intent.ts  carrying an invite through sign-in
+    join-intent.ts  carrying an invite through sign-in; the landing path
+    problems.ts     what to say when a sign-in comes back unhappy
+    sign-in-request.ts  the header's "Sign in" asking the landing page's popup to open
     schemas.ts  display-name.ts
   supabase/         browser client, server client, the env check
   forms/
@@ -522,6 +545,7 @@ lib/
     numeric.ts      Zod: strict string -> number, then peso -> centavos
   site.ts           where invite links point
   nav.ts            which room a URL belongs to (the menu marks it)
+  sparkle.ts        the landing page's hand-drawn diamond sparkles, and where they go
 
 supabase/           schema.sql, verify-rls.sql, verify-checkpoint-clock.sql,
                     migrations/
@@ -650,7 +674,7 @@ product screens, so there is no dark palette to port.
 
 ## Tests
 
-`npm test` — **233 tests** in 16 files, all quick. No component is rendered and
+`npm test` — **259 tests** in 19 files, all quick. No component is rendered and
 nothing talks to a real database; everything below the UI is proven directly.
 The one thing it cannot reach is the SQL itself, which is what
 [`supabase/verify-rls.sql`](supabase/verify-rls.sql) and
@@ -670,7 +694,8 @@ are for.
 | `lib/nav.test.ts` | 2 | which room a URL belongs to, for the menu's highlight |
 | `lib/data/supabase-repository.test.ts` | 14 | "which member is me" is answered by account; a clock is cut before it is stopped, and still stops if the cut fails |
 | `lib/data/local-repository.test.ts` | 9 | a run across midnight becomes one entry per day: where each ends, who it is charged to, nothing lost |
-| `lib/auth/*.test.ts` | 18 | an invite surviving sign-in: cleaning the code, the cookie, the callback |
+| `lib/auth/*.test.ts` | 27 | an invite surviving sign-in (cleaning the code, the cookie, the callback), the landing path a failed sign-in comes back to, the notice each one gets, and the header's "Sign in" reaching the popup |
+| `lib/sparkle.test.ts` | 17 | the landing page's sparkles: each is one line round a four-pointed diamond with its points where they belong, kept out of the middle, and different from the last; and how a field of them opens — one start moment each, spread evenly over the first second, the first at once, from any corner and either way round |
 | `lib/site.test.ts` | 4 | invite links never point at localhost |
 | `components/fairy/share-table.test.ts` | 1 | the share table's column builder |
 
@@ -707,7 +732,7 @@ Highlights:
 The engine's suite was written before the engine and verified by mutation:
 reverting step 5 to the naive "zero the residual, leave the carve-outs" version
 fails three tests, including the property run. The identity, invite,
-share-table, midnight-cut, span, time-blocking, name-limit and menu-helper tests were each checked the same way — put the bug
+share-table, midnight-cut, span, time-blocking, name-limit, menu-helper, sign-in-notice, sign-in-request and sparkle tests were each checked the same way — put the bug
 back, watch them fail.
 
 ---
