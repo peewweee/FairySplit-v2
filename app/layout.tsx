@@ -17,6 +17,9 @@ const figtree = Figtree({
 export const metadata: Metadata = {
   title: "FairySplit",
   description: "Split shared bills by the days you actually stayed.",
+  // Proves to Google Search Console that this site is ours, which Google's brand verification
+  // for the sign-in screen asks for. Public by design, and it has to stay: Google re-checks it.
+  verification: { google: "dkNY9RpN7mYt21JoqX_-enTMLlrDkRK6QLcB_QZ6Uds" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
