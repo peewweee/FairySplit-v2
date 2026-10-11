@@ -16,7 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ErrorNote } from "@/components/fairy/shell-bits";
 import { ParticipantPicker } from "@/components/fairy/participant-picker";
+import { TimeField } from "@/components/fairy/time-field";
 import { HISTORY_DAYS, amountToday, describeQuantity } from "@/lib/tracking/elapsed";
+import { END_NOT_AFTER_START, spanFromTimes } from "@/lib/tracking/span";
 import {
   TRACKER_MODE_META,
   repo,
@@ -264,9 +266,15 @@ export function NewRunForm({
         setError(bad);
         return;
       }
-      const span = toSpan(entry.day, entry.from, entry.to);
-      if (!span) {
-        setError("Fill in both times.");
+      const span = spanFromTimes(entry.day, entry.from, entry.to);
+      if (!span.ok) {
+        // Name the date: each picked date keeps its own times, so "the end" alone
+        // would not say which box to fix.
+        setError(
+          span.problem === "incomplete"
+            ? "Fill in both times."
+            : `${shortDay(entry.day)}: ${END_NOT_AFTER_START}`,
+        );
         return;
       }
       spans.push({
@@ -300,24 +308,10 @@ export function NewRunForm({
           Select Dates
         </span>
         <div className="flex items-end gap-2">
-          <label className="grid gap-1">
-            <span className="text-[10.5px] font-bold text-fairy-grey-strong">From</span>
-            <Input
-              type="time"
-              value={from}
-              className="h-8 w-[6.5rem] text-[12px]"
-              onChange={(e) => retime({ from: e.target.value })}
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className="text-[10.5px] font-bold text-fairy-grey-strong">To</span>
-            <Input
-              type="time"
-              value={to}
-              className="h-8 w-[6.5rem] text-[12px]"
-              onChange={(e) => retime({ to: e.target.value })}
-            />
-          </label>
+          {/* Each field blocks what would make the other wrong: 'To' cannot be set
+              to or before 'From', and 'From' cannot be set to or after 'To'. */}
+          <TimeField label="From" value={from} before={to} onChange={(v) => retime({ from: v })} />
+          <TimeField label="To" value={to} after={from} onChange={(v) => retime({ to: v })} />
         </div>
       </div>
 
@@ -666,9 +660,11 @@ export function EntryRow({
       setError(bad);
       return;
     }
-    const span = toSpan(day, from, to);
-      if (!span) {
-        setError("Fill in the date and both times.");
+    const span = spanFromTimes(day, from, to);
+      if (!span.ok) {
+        setError(
+          span.problem === "incomplete" ? "Fill in the date and both times." : END_NOT_AFTER_START,
+        );
         return;
       }
       setError(null);
@@ -904,26 +900,8 @@ function SpanFields({
             onChange={(e) => setDay(e.target.value)}
           />
         </label>
-        <label className="grid gap-1">
-          <span className="text-[10.5px] font-bold text-fairy-grey-strong">From</span>
-          <Input
-            id={`${idPrefix}-from`}
-            type="time"
-            value={from}
-            className="h-8 w-[6.5rem] text-[12px]"
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </label>
-        <label className="grid gap-1">
-          <span className="text-[10.5px] font-bold text-fairy-grey-strong">To</span>
-          <Input
-            id={`${idPrefix}-to`}
-            type="time"
-            value={to}
-            className="h-8 w-[6.5rem] text-[12px]"
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </label>
+        <TimeField label="From" value={from} before={to} onChange={setFrom} />
+        <TimeField label="To" value={to} after={from} onChange={setTo} />
       </div>
     </div>
   );
@@ -979,35 +957,6 @@ function toTimeInput(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-/**
- * A date and two times back into a pair of instants.
- *
- * An end at or before the start rolls to the next day rather than erroring:
- * "in at 10pm, out at 8am" is the ordinary shape of a night at home, and
- * refusing it would make the commonest correction the hardest one to type.
- */
-function toSpan(
-  day: string,
-  from: string,
-  to: string,
-): { startedAt: string; endedAt: string; overnight: boolean } | null {
-  const [y, m, d] = day.split("-").map(Number);
-  const [fh, fm] = from.split(":").map(Number);
-  const [th, tm] = to.split(":").map(Number);
-  if (!y || !m || !d) return null;
-  if ([fh, fm, th, tm].some((n) => !Number.isFinite(n))) return null;
-
-  const start = new Date(y, m - 1, d, fh, fm, 0);
-  const end = new Date(y, m - 1, d, th, tm, 0);
-  const overnight = end.getTime() <= start.getTime();
-  if (overnight) end.setDate(end.getDate() + 1);
-  return {
-    startedAt: start.toISOString(),
-    endedAt: end.toISOString(),
-    overnight,
-  };
 }
 
 /**
