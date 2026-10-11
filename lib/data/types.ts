@@ -66,7 +66,7 @@ export const APPLIANCE_MODE_META: Record<
     label: "Always on",
     unit: "day",
     unitPlural: "days",
-    hint: "Runs 24/7. Cost is kWh/day × the period's day count, split equally among everyone.",
+    hint: "Runs 24/7, split equally among everyone.",
   },
   per_hour: {
     label: "Per hour",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Calculator, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Field } from "@/components/fairy/field";
+import { InfoPopover } from "@/components/fairy/info-popover";
 import { ErrorNote } from "@/components/fairy/shell-bits";
 import {
   APPLIANCE_MODE_META,
@@ -188,6 +189,9 @@ export function ApplianceForm({
             disabled={!allowAlwaysOn}
             label="Equally"
             hint={APPLIANCE_MODE_META.always_on.hint}
+            note="Recommended for a refrigerator."
+            help="Cost is energy per day × electricity rate × the period's day count."
+            helpLabel="How the Equally cost is worked out"
             onSelect={() => setChoice(EQUALLY)}
           />
 
@@ -195,6 +199,8 @@ export function ApplianceForm({
             checked={tracked}
             label="Track based on logs"
             hint="Charged to whoever logged it, for the dates this bill covers."
+            help="Cost is energy per unit × units logged × electricity rate, charged to whoever logged them. A unit is whatever the log counts: hours, cycles or days."
+            helpLabel="How the logged cost is worked out"
             // Deliberately does NOT choose a log. Picking one silently would
             // put a number on somebody's bill that nobody asked for.
             onSelect={() => {
@@ -289,14 +295,14 @@ export function ApplianceForm({
         {!allowAlwaysOn && (
           <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-ember">
             &ldquo;Equally&rdquo; needs the dates this bill covers — its cost is
-            kWh/day × days. Fill in From and To and it unlocks.
+            energy per day × electricity rate × days. Fill in From and To and it unlocks.
           </p>
         )}
       </div>
 
       <Field
         id="appliance-kwh"
-        label={`Energy per ${unitLabel}`}
+        label={`Appliance energy per ${unitLabel}`}
         value={kwh}
         onChange={(v) => {
           setKwh(v);
@@ -402,18 +408,17 @@ function PerMonthConverter({
 
   return (
     <div className="grid gap-3 rounded-xl border border-fairy-hair-2 bg-fairy-tint p-3">
-      <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey">
-        Convert a monthly reading into a per-{APPLIANCE_MODE_META[mode].unit} figure.
-        Only the converted result is stored, so it won&rsquo;t drift when February
-        comes around.
-      </p>
-      <div className={perDayOnly ? "grid gap-3 sm:grid-cols-2" : "grid gap-3 sm:grid-cols-3"}>
+      {/* Two columns. With three fields the long first label gets a row to itself, rather
+          than wrapping in a third of the width and pushing its input out of line. */}
+      <div className="grid gap-3 sm:grid-cols-2">
         <Field
           id="conv-monthly"
-          label="kWh that month"
+          className={perDayOnly ? undefined : "sm:col-span-2"}
+          label="Monthly energy consumption"
           value={monthly}
           onChange={setMonthly}
           placeholder="e.g. 153.9"
+          suffix="kWh"
           inputMode="decimal"
         />
         <Field
@@ -422,6 +427,7 @@ function PerMonthConverter({
           value={days}
           onChange={setDays}
           placeholder="e.g. 30"
+          suffix="days"
           inputMode="decimal"
         />
         {!perDayOnly && (
@@ -462,47 +468,72 @@ function ChargeOption({
   disabled,
   label,
   hint,
+  note,
+  help,
+  helpLabel,
   onSelect,
 }: {
   checked: boolean;
   disabled?: boolean;
   label: string;
   hint: string;
+  /** A line of advice under the hint, in the app's accent ink ("Recommended for ..."). */
+  note?: string;
+  /**
+   * An explanation behind an info icon at the card's top right. The icon sits beside the
+   * radio, not inside it: a button inside a button is not valid, and tapping the icon must
+   * not choose the option.
+   */
+  help?: ReactNode;
+  /** What the info icon opens, for assistive tech. */
+  helpLabel?: string;
   onSelect: () => void;
 }) {
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={onSelect}
-      className={cn(
-        "flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
-        checked
-          ? "border-fairy-pink bg-fairy-tint"
-          : "border-fairy-hair bg-card hover:border-fairy-hair-2",
-        disabled && "cursor-not-allowed opacity-45",
-      )}
-    >
-      <span
-        aria-hidden
+    <div className="relative">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={onSelect}
         className={cn(
-          "mt-px flex size-4 shrink-0 items-center justify-center rounded-[4px] border-2",
-          checked ? "border-fairy-rose bg-fairy-rose text-white" : "border-fairy-hair-2",
+          "flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
+          checked
+            ? "border-fairy-pink bg-fairy-tint"
+            : "border-fairy-hair bg-card hover:border-fairy-hair-2",
+          disabled && "cursor-not-allowed opacity-45",
         )}
       >
-        {checked && <Check className="size-3" strokeWidth={3} />}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-[13px] font-bold tracking-[-0.01em] text-fairy-ink">
-          {label}
+        <span
+          aria-hidden
+          className={cn(
+            "mt-px flex size-4 shrink-0 items-center justify-center rounded-[4px] border-2",
+            checked ? "border-fairy-rose bg-fairy-rose text-white" : "border-fairy-hair-2",
+          )}
+        >
+          {checked && <Check className="size-3" strokeWidth={3} />}
         </span>
-        <span className="mt-0.5 block text-[11.5px] leading-[1.45] font-medium text-fairy-grey-strong">
-          {hint}
+        <span className="min-w-0">
+          <span className="block text-[13px] font-bold tracking-[-0.01em] text-fairy-ink">
+            {label}
+          </span>
+          <span className="mt-0.5 block text-[11.5px] leading-[1.45] font-medium text-fairy-grey-strong">
+            {hint}
+          </span>
+          {note && (
+            <span className="mt-1 block text-[11.5px] leading-[1.45] font-bold text-fairy-tint-ink">
+              {note}
+            </span>
+          )}
         </span>
-      </span>
-    </button>
+      </button>
+      {help && (
+        <span className="absolute top-3 right-3">
+          <InfoPopover label={helpLabel ?? `About ${label}`}>{help}</InfoPopover>
+        </span>
+      )}
+    </div>
   );
 }
 
