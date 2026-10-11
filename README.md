@@ -301,6 +301,12 @@ Each appliance answers this with a two-option tick box:
 Picking "track" does not choose a log for you — a silently chosen one would put
 a number on somebody's bill nobody asked for. Saving without one is refused.
 
+Each option carries an info icon (a popover, [`info-popover.tsx`](components/fairy/info-popover.tsx))
+that says how its cost is worked out: *energy per day × electricity rate × the period's day
+count* for **Equally** (the fridge, which the form recommends it for), and *energy per unit ×
+units logged × electricity rate* for **Track based on logs**. They are the engine's own
+formulas ([`lib/billing/engine.ts`](lib/billing/engine.ts), steps 1 and 2).
+
 ### Auto by default, editable when wrong
 
 A bill reads its figures from the logs over its own dates. A hand-entered figure
@@ -313,8 +319,14 @@ means zero.
 
 The **electricity rate (₱/kWh)** is the switch.
 
-- **Blank** → simple split, purely by days. No appliances.
+- **Blank** → simple split, purely by days. No appliances: the Appliances section is
+  still in the bill dialog, but its Add button is muted and says to add the rate first.
 - **Filled** → itemized, and the carve-out maths above applies.
+
+The field's label carries an info icon: tap it and a sample electricity bill opens
+with the rate circled, so nobody has to guess which number on their own bill to type
+([`components/fairy/rate-info.tsx`](components/fairy/rate-info.tsx),
+[`sample-bill.tsx`](components/fairy/sample-bill.tsx)).
 
 A bill needs only a total and one member to produce a correct, fully reconciled
 split. Everything else is optional and only makes it more precise.
@@ -675,7 +687,7 @@ product screens, so there is no dark palette to port.
 
 ## Tests
 
-`npm test` — **259 tests** in 19 files, all quick. No component is rendered and
+`npm test` — **262 tests** in 20 files, all quick. No component is rendered and
 nothing talks to a real database; everything below the UI is proven directly.
 The one thing it cannot reach is the SQL itself, which is what
 [`supabase/verify-rls.sql`](supabase/verify-rls.sql) and
@@ -697,6 +709,7 @@ are for.
 | `lib/data/local-repository.test.ts` | 9 | a run across midnight becomes one entry per day: where each ends, who it is charged to, nothing lost |
 | `lib/auth/*.test.ts` | 27 | an invite surviving sign-in (cleaning the code, the cookie, the callback), the landing path a failed sign-in comes back to, the notice each one gets, and the header's "Sign in" reaching the popup |
 | `lib/sparkle.test.ts` | 17 | the landing page's sparkles: each is one line round a four-pointed diamond with its points where they belong, kept out of the middle, and different from the last; and how a field of them opens — one start moment each, spread evenly over the first second, the first at once, from any corner and either way round |
+| `lib/sample-bill.test.ts` | 3 | the mock electricity bill behind the rate field's info icon adds up: the meter's kWh, its charges and the rate it circles agree to the centavo |
 | `lib/site.test.ts` | 4 | invite links never point at localhost |
 | `components/fairy/share-table.test.ts` | 1 | the share table's column builder |
 
