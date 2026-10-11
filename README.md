@@ -307,6 +307,30 @@ count* for **Equally** (the fridge, which the form recommends it for), and *ener
 units logged × electricity rate* for **Track based on logs**. They are the engine's own
 formulas ([`lib/billing/engine.ts`](lib/billing/engine.ts), steps 1 and 2).
 
+The energy fields carry info icons too ([`energy-guide-info.tsx`](components/fairy/energy-guide-info.tsx)),
+under a small "Check your appliance's energy guide" line beneath each label (`Field`'s `hint`),
+each icon opening a sample of the paper that holds the figure, with that figure circled: a
+refrigerator's energy guide for **Appliance energy per day** (the *Energy Consumption* line, in
+kWh per 24 hours), and one air conditioner energy label, laid out like the Philippine DOE's, for
+the converter's **Monthly energy consumption** and **Hours a day**. The label prints the monthly
+kWh and, in small type, "based on 9-hour daily usage", so the hours field is the hours the
+*figure* is based on, not how long you run the appliance. The DOE works its monthly figure out
+over 30 days and the label never prints the 30, so the converter does not ask for it: it counts a
+month as 30 days ([`lib/billing/label-energy.ts`](lib/billing/label-energy.ts)) and says so in the
+monthly field's info dialog. It deliberately does not use the bill's dates: the bill's own days are
+applied later, by the engine, to the per-day figure the converter stores. The samples are invented,
+and leave out the DOE's seal, QR code and legal text
+([`sample-energy-guide.tsx`](components/fairy/sample-energy-guide.tsx),
+[`sample-energy-label.tsx`](components/fairy/sample-energy-label.tsx)).
+
+*What* the converter gives depends on what the charge counts. Around the clock ("Equally") and
+per-day logs get a figure **per day** (monthly ÷ 30); per-hour logs, and "Track based on logs" before
+a log is picked, get one **per hour** (monthly ÷ 30 ÷ the label's hours); per-cycle logs get no
+converter, because a label gives energy per cycle itself. A figure the converter wrote is dropped if
+you then pick a log that counts something else (0.57 kWh a "day" instead of 5.13 would bill nine
+times too little); a figure you typed yourself is never touched
+([`convertibleUnit`](lib/billing/label-energy.ts)).
+
 ### Auto by default, editable when wrong
 
 A bill reads its figures from the logs over its own dates. A hand-entered figure
@@ -498,9 +522,17 @@ dependency:
 - **Download image** — a PNG drawn on a canvas from the same columns the table
   renders. Not a screenshot: no UI chrome, sharp at 2×, and the same whatever the
   page is scrolled to.
-- **Save as PDF** — the browser's own print-to-PDF. The table sits in a
-  `[data-print-sheet]` wrapper and the print stylesheet hides everything else, so
-  what prints is the heading and the table.
+- **Save as PDF** — the browser's own print-to-PDF, of a page made for it:
+  [`bill-print-sheet.tsx`](components/fairy/bill-print-sheet.tsx). The FairySplit
+  logo and a rose rule, the room, the bill's name and period, the total in a tinted
+  band, the table with a tick box per person (ticked for anyone marked paid), and a
+  footer with the date and the app's tagline. The sheet is rendered straight into
+  `<body>` and the print stylesheet just hides every other child of it, so no
+  on-screen layout can push it off the page. The page has no margin of its own (the
+  sheet pads itself), so the browser has nowhere to stamp its URL and date, and
+  the PDF's suggested file name is "Room - Bill - FairySplit". It is one A4 page for any
+  ordinary bill. The image and the PDF build their rows from the same
+  function (`tableText` in `share-table.tsx`), so they cannot disagree.
 
 A hand-rolled PDF was the obvious alternative and is the wrong one: the standard
 PDF fonts have **no glyph for ₱**, so a peso table would come out mangled. The
@@ -687,7 +719,7 @@ product screens, so there is no dark palette to port.
 
 ## Tests
 
-`npm test` — **262 tests** in 20 files, all quick. No component is rendered and
+`npm test` — **285 tests** in 24 files, all quick. No component is rendered and
 nothing talks to a real database; everything below the UI is proven directly.
 The one thing it cannot reach is the SQL itself, which is what
 [`supabase/verify-rls.sql`](supabase/verify-rls.sql) and
@@ -710,8 +742,12 @@ are for.
 | `lib/auth/*.test.ts` | 27 | an invite surviving sign-in (cleaning the code, the cookie, the callback), the landing path a failed sign-in comes back to, the notice each one gets, and the header's "Sign in" reaching the popup |
 | `lib/sparkle.test.ts` | 17 | the landing page's sparkles: each is one line round a four-pointed diamond with its points where they belong, kept out of the middle, and different from the last; and how a field of them opens — one start moment each, spread evenly over the first second, the first at once, from any corner and either way round |
 | `lib/sample-bill.test.ts` | 3 | the mock electricity bill behind the rate field's info icon adds up: the meter's kWh, its charges and the rate it circles agree to the centavo |
+| `lib/billing/label-energy.test.ts` | 8 | the converter: a label's month is 30 days, 153.9 kWh is 5.13 a day or 0.57 an hour at 9 hours a day, kept to four decimals; and which figure it can give (per day, per hour, none for per-cycle) |
+| `lib/billing/explain.test.ts` | 5 | the line that explains what a log cost somebody: multiplied out when it is exactly that, the kWh of several appliances on one log added and named, and "shared" only when it really was |
+| `lib/forms/numeric.test.ts` | 4 | the rate stops at ₱100/kWh (a missing decimal point is refused) and converts to millicents; hours stayed stop at a year's worth |
+| `lib/sample-energy-label.test.ts` | 3 | the mock aircon label behind the converter's info icons adds up: its monthly kWh follows from its power, 9 hours, 30 days and load factor, and the converter turns it into the energy per hour it would store |
 | `lib/site.test.ts` | 4 | invite links never point at localhost |
-| `components/fairy/share-table.test.ts` | 1 | the share table's column builder |
+| `components/fairy/share-table.test.ts` | 4 | the share table's column builder, and its plain-text rows that the image and the PDF share: the columns, "Someone" for a person who left, totals that add up |
 
 Highlights:
 
