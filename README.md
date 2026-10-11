@@ -153,8 +153,18 @@ the fact — a clock only records what somebody remembered to press. Deleting on
 asks first, in place; the hours simply stop counting and do not come back.
 
 - A **clock run** is edited as a span: a date and two times, with the hours
-  derived from them. An end at or before the start rolls to the next day, because
-  "in at ten, out at eight" is the ordinary shape of a night at home.
+  derived from them. The end has to come after the start, on the same day, and
+  the time fields enforce that by blocking rather than by complaining: in *To*,
+  every hour and minute at or before *From* is greyed out and cannot be chosen,
+  and in *From* everything at or after *To* is. So 9 AM to 3 AM cannot be
+  entered at all, instead of being read as the next morning. A night that runs
+  past midnight is two entries, the evening on one date and the morning on the
+  next, which is also how a clock left running is recorded; the
+  [calendar](#catching-up-on-several-days) can add both in one go. The fields
+  are hour / minute / AM-PM lists rather than the browser's time input, because
+  that input's `min` and `max` do not block anywhere that matters: iPhone Safari
+  ignores them and Android shows a time greyed out but lets it be picked. A
+  disabled option in a list is refused everywhere.
 - A **manual entry** is edited as a date and an amount. The date decides which
   bill it lands on.
 
@@ -335,6 +345,10 @@ room has its own member rows, each with its own name — you might be "Phoebe" i
 one flat and "Ate Phoebe" in another — and `members.user_id` links a row to the
 account that holds it.
 
+A room's name and a person's name share one limit, 40 characters
+(`NAME_MAX` in [`lib/forms/schemas.ts`](lib/forms/schemas.ts)). The fields stop
+taking characters at that point rather than complaining afterwards.
+
 Which member is **you** is answered by that link
 (`repo.getMyMember(roomId)`), never by comparing names. Renaming yourself, in the
 header or in a room, cannot lose your clock, and two people called Phoebe cannot
@@ -413,6 +427,14 @@ deleted while that room exists (`rooms.created_by` is `on delete restrict`).
 
 Signed out, every room page sends you to `/login`.
 
+**The menu.** A hamburger at the left of the header opens a drawer: *Home* (the
+rooms page); your name, which you tap to change the name your housemates see,
+with the account's own name in smaller type under it; *Sign out*; then a line and
+every room you are in, the one you are on marked. It reads your name and rooms
+when it opens, so a closed menu costs no requests. The header keeps your name and
+a sign-out icon for one tap, and a room's breadcrumb (*Rooms › its name*) stays
+above its title.
+
 **The room screen** leads with *Your tracking* — your clocks and logs, the
 built-in one filled blush so it is distinguishable from the rest — then the
 list of bills. A bill in that list shows your hours and your share, and opens by
@@ -475,6 +497,10 @@ lib/
                     in, never read from the system. Also holds HISTORY_DAYS and
                     `midnightsBetween`, where a running clock gets cut.
     overlap.ts      pure: overlapping clock spans -> who shared each slice
+    span.ts         pure: a date and two times -> a pair of instants; the end
+                    has to come after the start, on the same day
+    time-of-day.ts  pure: times as minutes, and which hours and minutes a time
+                    field has to block
   data/
     types.ts        the domain model
     repository.ts   the interface every screen reads and writes through
@@ -495,6 +521,7 @@ lib/
     schemas.ts      Zod: text, dates, join codes
     numeric.ts      Zod: strict string -> number, then peso -> centavos
   site.ts           where invite links point
+  nav.ts            which room a URL belongs to (the menu marks it)
 
 supabase/           schema.sql, verify-rls.sql, verify-checkpoint-clock.sql,
                     migrations/
@@ -623,7 +650,7 @@ product screens, so there is no dark palette to port.
 
 ## Tests
 
-`npm test` — **191 tests** in 12 files, all quick. No component is rendered and
+`npm test` — **233 tests** in 16 files, all quick. No component is rendered and
 nothing talks to a real database; everything below the UI is proven directly.
 The one thing it cannot reach is the SQL itself, which is what
 [`supabase/verify-rls.sql`](supabase/verify-rls.sql) and
@@ -637,6 +664,10 @@ are for.
 | `lib/billing/money.test.ts` | 20 | centavos, millicents, largest-remainder, equal shares |
 | `lib/tracking/elapsed.test.ts` | 48 | the daily reset, midnight-spanning runs, where a run is cut (including across a daylight-saving change), per-person shares, duplicate detection |
 | `lib/tracking/overlap.test.ts` | 11 | splitting overlapping clock spans |
+| `lib/tracking/span.test.ts` | 9 | a span has to end after it starts, on the same day: 9 AM to 3:59 AM is refused, a night past midnight is two entries, the whole day is fine |
+| `lib/tracking/time-of-day.test.ts` | 23 | which hours, minutes and halves of the day a time field blocks — *To* after 4:00 AM, *From* before 3:08 AM — and that the three lists reach exactly the allowed minutes |
+| `lib/forms/schemas.test.ts` | 8 | one 40-character limit for room names and display names: exactly 40 passes, 41 does not, measured after trimming |
+| `lib/nav.test.ts` | 2 | which room a URL belongs to, for the menu's highlight |
 | `lib/data/supabase-repository.test.ts` | 14 | "which member is me" is answered by account; a clock is cut before it is stopped, and still stops if the cut fails |
 | `lib/data/local-repository.test.ts` | 9 | a run across midnight becomes one entry per day: where each ends, who it is charged to, nothing lost |
 | `lib/auth/*.test.ts` | 18 | an invite surviving sign-in: cleaning the code, the cookie, the callback |
@@ -661,6 +692,12 @@ Highlights:
   timezone; the daylight-saving cases switch the zone themselves.
 - **Overlaps**, hand-traced before they were trusted: the 2–4 pm and 3–5 pm
   example, a three-way overlap, and two spans that touch without overlapping.
+- **A span cannot leave its day**: every hour-to-hour pair is tried, and exactly
+  the 276 that move forward are accepted — 9 AM to 3:59 AM is refused rather than
+  quietly becoming 19 hours.
+- **A time field blocks, it does not scold**: for every minute of the day, the
+  hour, minute and AM/PM lists can reach it exactly when it is allowed, and a
+  change that lands on a blocked time snaps to the nearest allowed one.
 - **Two people called Phoebe** each get their own row, and a renamed header
   still finds you.
 - **The invite flow** pins the Google redirect URL exactly, and that the
@@ -670,7 +707,7 @@ Highlights:
 The engine's suite was written before the engine and verified by mutation:
 reverting step 5 to the naive "zero the residual, leave the carve-outs" version
 fails three tests, including the property run. The identity, invite,
-share-table and midnight-cut tests were each checked the same way — put the bug
+share-table, midnight-cut, span, time-blocking, name-limit and menu-helper tests were each checked the same way — put the bug
 back, watch them fail.
 
 ---
@@ -702,9 +739,8 @@ Written down rather than papered over.
 - **A clock is cut at midnight by the app, not by the server.** One left on with
   the app closed stays a single open run until somebody opens the app or clocks
   out; a scheduled job would fix that but needs to know each room's timezone.
-  A span typed in after the fact that crosses midnight is also still stored as
-  one entry. Entries recorded before the cut existed were split once, in a
-  one-off pass on 11 October 2026.
+  Entries recorded before the cut existed were split once, in a one-off pass on
+  11 October 2026.
 - **Facebook and email + password sign-in are off**, for the reasons
   [above](#signing-in). Google is the only way in.
 - **A join code cannot be changed.** Anyone who holds a room's code can join it.
@@ -712,6 +748,9 @@ Written down rather than papered over.
 - **Members trust each other.** Any member can rename or remove anyone, and
   rename or delete the room.
 - **Deleting an account is manual** — by email, as `/data-deletion` describes.
+- **The 40-character name limit is the app's, not the database's.** The fields
+  stop at it and the form schemas check it, but a name sent to the API directly
+  is not cut.
 - **An added clock log shows two "Charged to" pickers** while its add-entry form
   is open: the card's own, which decides who a live run is charged to, and the
   form's, which decides who the typed entry is charged to. They are genuinely
