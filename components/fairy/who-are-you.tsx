@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { repo } from "@/lib/data";
 import { useMounted, useRepoAction, useRepoQuery, useResetOnChange } from "@/lib/data/hooks";
-import { parseField, personNameSchema } from "@/lib/forms/schemas";
+import { NAME_MAX, parseField, personNameSchema } from "@/lib/forms/schemas";
 
 /**
  * "Who are you" (Phase 1).
@@ -72,7 +72,7 @@ export function WhoAreYou() {
   );
 }
 
-function IdentityDialog({
+export function IdentityDialog({
   open,
   onOpenChange,
   current,
@@ -128,6 +128,7 @@ function IdentityDialog({
             id="identity-name"
             autoFocus
             value={name}
+            maxLength={NAME_MAX}
             placeholder="e.g. Phoebe"
             onChange={(e) => {
               setName(e.target.value);

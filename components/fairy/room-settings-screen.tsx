@@ -22,7 +22,7 @@ import { Crumbs, ErrorNote, LoadingRows, PageHeader } from "@/components/fairy/s
 import { SparkleBurst, useSparkle } from "@/components/fairy/sparkle-burst";
 import { repo, type Room } from "@/lib/data";
 import { useRepoAction, useRepoQuery } from "@/lib/data/hooks";
-import { parseField, roomNameSchema } from "@/lib/forms/schemas";
+import { NAME_MAX, parseField, roomNameSchema } from "@/lib/forms/schemas";
 
 export function RoomSettingsScreen({ roomId }: { roomId: string }) {
   const room = useRepoQuery(() => repo.getRoom(roomId), [roomId]);
@@ -93,6 +93,7 @@ function RoomNamePanel({ room }: { room: Room }) {
             <Input
               id="room-name-input"
               value={name}
+              maxLength={NAME_MAX}
               className="h-10"
               onChange={(e) => {
                 setName(e.target.value);

@@ -11,18 +11,27 @@ import { z } from "zod";
 
 const trimmed = z.string().transform((s) => s.trim());
 
+/**
+ * The one length every name shares — a room's and a person's.
+ *
+ * The fields refuse characters past it as they are typed (`maxLength`), so nobody
+ * is told off afterwards; the schemas below are the check behind them, for a value
+ * that arrives some other way.
+ */
+export const NAME_MAX = 40;
+
 export const personNameSchema = trimmed.pipe(
   z
     .string()
     .min(1, "Type a name.")
-    .max(40, "That name is a bit long - 40 characters max."),
+    .max(NAME_MAX, `That name is a bit long - ${NAME_MAX} characters max.`),
 );
 
 export const roomNameSchema = trimmed.pipe(
   z
     .string()
     .min(1, "Give the room a name.")
-    .max(60, "That name is a bit long - 60 characters max."),
+    .max(NAME_MAX, `That name is a bit long - ${NAME_MAX} characters max.`),
 );
 
 export const labelSchema = trimmed.pipe(

@@ -20,7 +20,7 @@ import { SparkleBurst, useSparkle } from "@/components/fairy/sparkle-burst";
 import { JoinCode } from "@/components/fairy/join-code";
 import { repo } from "@/lib/data";
 import { useRepoAction, useRepoQuery } from "@/lib/data/hooks";
-import { joinCodeSchema, parseField, roomNameSchema } from "@/lib/forms/schemas";
+import { NAME_MAX, joinCodeSchema, parseField, roomNameSchema } from "@/lib/forms/schemas";
 
 export function RoomsScreen() {
   const rooms = useRepoQuery(() => repo.listRooms(), []);
@@ -137,6 +137,7 @@ function NewRoomDialog({ creatorName }: { creatorName: string }) {
             setError(null);
           }}
           placeholder="e.g. Unit 12B"
+          maxLength={NAME_MAX}
           requirement="required"
           autoFocus
           error={error ?? action.error}

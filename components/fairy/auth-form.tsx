@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { NAME_MAX } from "@/lib/forms/schemas";
 import type { AuthState } from "@/lib/auth/actions";
 
 type Action = (state: AuthState, formData: FormData) => Promise<AuthState>;
@@ -47,6 +48,7 @@ export function AuthForm({
           label="Your name"
           type="text"
           autoComplete="name"
+          maxLength={NAME_MAX}
           placeholder="Phoebe"
           helper="Shown on your account. Each room can still call you something else."
           error={state.fieldErrors?.displayName}
@@ -116,6 +118,7 @@ function AuthField({
   label,
   type,
   autoComplete,
+  maxLength,
   placeholder,
   helper,
   error,
@@ -126,6 +129,7 @@ function AuthField({
   label: string;
   type: "text" | "email" | "password";
   autoComplete: string;
+  maxLength?: number;
   placeholder?: string;
   helper?: string;
   error?: string;
@@ -147,6 +151,7 @@ function AuthField({
         name={name}
         type={type}
         autoComplete={autoComplete}
+        maxLength={maxLength}
         placeholder={placeholder}
         defaultValue={defaultValue}
         aria-invalid={Boolean(error)}

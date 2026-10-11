@@ -26,6 +26,8 @@ export interface FieldProps {
   min?: string;
   max?: string;
   inputMode?: "text" | "decimal" | "numeric";
+  /** The field stops taking characters past this, rather than complaining after. */
+  maxLength?: number;
   prefix?: string;
   suffix?: string;
   autoFocus?: boolean;
@@ -47,6 +49,7 @@ export function Field({
   min,
   max,
   inputMode,
+  maxLength,
   prefix,
   suffix,
   autoFocus,
@@ -88,6 +91,7 @@ export function Field({
           min={min}
           max={max}
           inputMode={inputMode}
+          maxLength={maxLength}
           value={value}
           autoFocus={autoFocus}
           disabled={disabled}

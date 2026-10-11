@@ -25,7 +25,7 @@ import { ErrorNote } from "@/components/fairy/shell-bits";
 import { SparkleBurst, useSparkle } from "@/components/fairy/sparkle-burst";
 import { repo, type Member, type MemberFootprint } from "@/lib/data";
 import { useRepoAction, useRepoQuery } from "@/lib/data/hooks";
-import { parseField, personNameSchema } from "@/lib/forms/schemas";
+import { NAME_MAX, parseField, personNameSchema } from "@/lib/forms/schemas";
 import { inviteLink } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -148,6 +148,7 @@ function MemberRow({ roomId, member }: { roomId: string; member: Member }) {
           <Input
             autoFocus
             value={draft}
+            maxLength={NAME_MAX}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") void save();
