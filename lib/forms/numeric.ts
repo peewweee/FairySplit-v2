@@ -177,8 +177,9 @@ export const chargeAmountSchema = decimalSchema({
 }).transform(pesosToCentavos);
 
 /**
- * THE MODE SWITCH (section 3). Blank means simple split and no appliance
- * section at all; a figure means itemized.
+ * THE MODE SWITCH (section 3). Blank means simple split and no appliances (the
+ * section is still shown, with its Add button waiting for a rate); a figure
+ * means itemized.
  */
 export const optionalRateSchema = optionalDecimalSchema({
   emptyMessage: "",

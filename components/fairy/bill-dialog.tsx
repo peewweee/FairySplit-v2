@@ -117,7 +117,9 @@ export function BillDialog({
   const meta = BILL_KIND_META[kind];
   const parsedRate = parseField(optionalRateSchema, rate);
   // Section 3 still holds, now behind the kind: only an itemizable kind offers a
-  // rate at all, and only a rate brings out the appliance section.
+  // rate at all, and only a rate lets you ADD an appliance. The appliance section
+  // itself is always there for such a kind; until there is a rate its Add button
+  // waits, and says why, instead of the whole section being hidden.
   const itemized = meta.itemizable && parsedRate.ok && parsedRate.value !== null;
 
   const parsedTotalPreview = parseField(billTotalSchema, total);
@@ -398,7 +400,8 @@ export function BillDialog({
             </p>
           )}
 
-          {/* Section 3: not greyed out, not empty — not rendered. */}
+          {/* A water or Others bill has no appliances at all, so for those the
+              section is not rendered. */}
           {!meta.itemizable && appliances.length > 0 && (
             <p className="border-l-[2.5px] border-fairy-ember bg-fairy-ember-tint px-3.5 py-2.5 text-[11.5px] font-semibold text-fairy-ember">
               A non-electricity (water or others) bill has no appliances to itemize.
@@ -408,16 +411,16 @@ export function BillDialog({
             </p>
           )}
 
-          {itemized && (
+          {meta.itemizable && (
             <CollapsibleSection
               icon={<Plug className="size-3.5" aria-hidden />}
               title="Appliances"
               count={appliances.length}
-              className="animate-reveal"
             >
               <ApplianceDrafts
                 drafts={appliances}
                 onChange={setAppliances}
+                canAdd={itemized}
                 allowAlwaysOn={covered !== null}
                 trackers={trackers.data ?? []}
                 roomId={roomId}
@@ -510,12 +513,15 @@ function CollapsibleSection({
 function ApplianceDrafts({
   drafts,
   onChange,
+  canAdd,
   allowAlwaysOn,
   trackers,
   roomId,
 }: {
   drafts: DraftAppliance[];
   onChange: (next: DraftAppliance[]) => void;
+  /** Only a bill with an electricity rate can take a new appliance: nothing to price it against otherwise. */
+  canAdd: boolean;
   allowAlwaysOn: boolean;
   trackers: Tracker[];
   roomId: string;
@@ -523,6 +529,10 @@ function ApplianceDrafts({
   const [adding, setAdding] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const editingDraft = drafts.find((d) => d.key === editingKey);
+  const hintId = useId();
+  // A form left open while the rate is cleared simply stays out of sight until a rate
+  // is back, rather than letting an appliance be added to a bill that cannot price it.
+  const showAddForm = adding && canAdd;
 
   function upsert(draft: ApplianceDraft) {
     if (editingDraft) {
@@ -576,7 +586,7 @@ function ApplianceDrafts({
         </div>
       ))}
 
-      {(adding || editingDraft) && (
+      {(showAddForm || editingDraft) && (
         <div className="border border-fairy-hair-2 bg-fairy-screen p-3">
           <ApplianceForm
             key={editingDraft?.key ?? "new"}
@@ -603,16 +613,25 @@ function ApplianceDrafts({
         </div>
       )}
 
-      {!adding && !editingDraft && (
-        <Button
-          size="sm"
-          variant="secondary"
-          className="w-fit"
-          onClick={() => setAdding(true)}
-        >
-          <Plus className="size-3.5" aria-hidden />
-          Add appliance
-        </Button>
+      {!showAddForm && !editingDraft && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="w-fit"
+            disabled={!canAdd}
+            aria-describedby={canAdd ? undefined : hintId}
+            onClick={() => setAdding(true)}
+          >
+            <Plus className="size-3.5" aria-hidden />
+            Add appliance
+          </Button>
+          {!canAdd && (
+            <p id={hintId} className="text-[11.5px] leading-[1.5] font-medium text-fairy-grey">
+              Add your electricity rate first, then you can add appliances.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
