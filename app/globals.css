@@ -345,34 +345,33 @@
 }
 
 /* -- printing a bill ------------------------------------------------------ *
- * "Save as PDF" is the browser's own print-to-PDF, so printing has to leave
- * only the sheet on the page. visibility rather than display: display:none on
- * an ancestor would take the sheet with it, however it is marked.
+ * "Save as PDF" is the browser's own print-to-PDF. `PrintSheet` is rendered
+ * straight into <body>, so printing is just: hide every other child of body.
+ * (The old approach hid everything with `visibility` and pinned the table with
+ * `position: absolute`, which kept the screen's layout and clipped the sheet.)
+ *
+ * The page has no margin of its own: the sheet pads itself. With no margin the
+ * browser has nowhere to stamp its URL and date, so the PDF carries only ours.
  * ------------------------------------------------------------------------- */
 @media print {
-  body * {
-    visibility: hidden;
+  @page {
+    size: A4;
+    margin: 0;
   }
 
-  [data-print-sheet],
-  [data-print-sheet] * {
-    visibility: visible;
+  html,
+  body {
+    background: #fff !important;
   }
 
-  [data-print-sheet] {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    padding: 0;
-  }
-
-  /* Anything that only makes sense to a pointer. */
-  [data-print-hide] {
+  body > *:not([data-print-sheet]) {
     display: none !important;
   }
 
-  @page {
-    margin: 16mm;
+  /* Tints and rules are part of the design; browsers drop backgrounds unless told. */
+  [data-print-sheet],
+  [data-print-sheet] * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 }

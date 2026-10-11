@@ -130,28 +130,18 @@ function BillBody({
 
           {result ? (
             <>
-              {/* The printable sheet: a heading the page does not otherwise
-                  need, then the table. Print CSS shows only this. */}
-              <div data-print-sheet>
-                <div className="mb-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-                  <div className="min-w-0">
-                    <p className="hidden text-[18px] font-extrabold tracking-[-0.03em] text-fairy-ink print:block">
-                      {bill.name}
-                    </p>
-                    <p className="hidden text-[12px] font-medium text-fairy-grey-strong print:block">
-                      {room.name} · {describeCoverage(bill)} · {formatCentavos(billed)}
-                    </p>
-                  </div>
-                  <div data-print-hide className="ml-auto">
-                    <BillExportButton
-                      bill={bill}
-                      room={room}
-                      members={members}
-                      trackers={trackers.data ?? []}
-                      result={result}
-                      billedCentavos={billed}
-                    />
-                  </div>
+              {/* What prints is a page of its own, `PrintSheet`, which the Share
+                  button puts on the page; nothing here is marked for print. */}
+              <div>
+                <div className="mb-2 flex justify-end">
+                  <BillExportButton
+                    bill={bill}
+                    room={room}
+                    members={members}
+                    trackers={trackers.data ?? []}
+                    result={result}
+                    billedCentavos={billed}
+                  />
                 </div>
 
                 <ShareTable

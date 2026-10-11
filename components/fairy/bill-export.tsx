@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Download, FileText, Image as ImageIcon, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,12 +11,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PrintSheet, type Sheet } from "@/components/fairy/bill-print-sheet";
 import { ErrorNote } from "@/components/fairy/shell-bits";
-import { costColumns } from "@/components/fairy/share-table";
+import { tableText } from "@/components/fairy/share-table";
 import { describeCoverage } from "@/components/fairy/bills-panel";
 import { formatCentavos } from "@/lib/billing/money";
 import type { BillResult } from "@/lib/billing/engine";
 import type { Bill, Member, Room, Tracker } from "@/lib/data";
+
+/** For `useSyncExternalStore` where there is nothing to subscribe to: "am I in the browser?" */
+const subscribeNever = () => () => {};
 
 /**
  * Taking the share table out of the app.
@@ -24,7 +29,8 @@ import type { Bill, Member, Room, Tracker } from "@/lib/data";
  * on a canvas from the same numbers the table renders — not a screenshot, so it
  * is crisp at any zoom and carries no UI chrome. A PDF is left to the browser's
  * own print-to-PDF, which is the only way to get real page setup and a working
- * peso sign: the fonts a hand-rolled PDF can rely on have no glyph for it.
+ * peso sign: the fonts a hand-rolled PDF can rely on have no glyph for it. What
+ * prints is `PrintSheet`: a branded page of its own, not the screen.
  *
  * Neither needs a dependency, which is why neither is a library.
  */
@@ -46,8 +52,11 @@ export function BillExportButton({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Stamped when "Save as PDF" is pressed, so the printed date is the day it was printed.
+  const [printedOn, setPrintedOn] = useState("");
+  const inBrowser = useSyncExternalStore(subscribeNever, () => true, () => false);
 
-  const sheet = { bill, room, members, trackers, result, billedCentavos };
+  const sheet: Sheet = { bill, room, members, trackers, result, billedCentavos };
   const fileName = `${slug(room.name)}-${slug(bill.name)}.png`;
 
   async function saveImage() {
@@ -90,10 +99,26 @@ export function BillExportButton({
   }
 
   function savePdf() {
-    // The print stylesheet leaves only the marked sheet on the page, so what is
-    // printed is the table and its heading, not the whole screen.
+    // The print stylesheet leaves only the print sheet on the page, so what is
+    // printed is that page, not the whole screen.
+    setPrintedOn(
+      new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }),
+    );
     setOpen(false);
-    window.setTimeout(() => window.print(), 100);
+
+    // Browsers offer the page title as the PDF's file name. Borrow a good one for the print.
+    const previousTitle = document.title;
+    document.title = `${room.name} - ${bill.name} - FairySplit`;
+    window.addEventListener(
+      "afterprint",
+      () => {
+        document.title = previousTitle;
+      },
+      { once: true },
+    );
+
+    // A beat for the dialog to close and the sheet to pick up its date.
+    window.setTimeout(() => window.print(), 150);
   }
 
   return (
@@ -146,6 +171,8 @@ export function BillExportButton({
           <ErrorNote>{error}</ErrorNote>
         </DialogContent>
       </Dialog>
+
+      {inBrowser && createPortal(<PrintSheet sheet={sheet} printedOn={printedOn} />, document.body)}
     </>
   );
 }
@@ -200,15 +227,6 @@ function canShareFiles(): boolean {
 
 /* -- drawing the sheet ---------------------------------------------------- */
 
-interface Sheet {
-  bill: Bill;
-  room: Room;
-  members: Member[];
-  trackers: Tracker[];
-  result: BillResult;
-  billedCentavos: number;
-}
-
 const INK = "#1c1518";
 const GREY = "#6e6065";
 const HAIR = "#f0e4e7";
@@ -224,21 +242,8 @@ const FONT = "'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif";
  * font problem, and gives the same result whatever the page is scrolled to.
  */
 async function drawSheet(sheet: Sheet): Promise<Blob | null> {
-  const { bill, room, members, trackers, result, billedCentavos } = sheet;
-  const nameOf = new Map(members.map((m) => [m.id, m.name]));
-  const columns = costColumns(bill, trackers, result);
-
-  const head = ["Person", ...columns.map((c) => c.label), "Owes"];
-  const body = result.rows.map((row) => [
-    nameOf.get(row.memberId) ?? "Someone",
-    ...columns.map((c) => formatCentavos(c.valueOf(row))),
-    formatCentavos(row.totalCentavos),
-  ]);
-  const foot = [
-    "Total",
-    ...columns.map((c) => formatCentavos(result.rows.reduce((a, r) => a + c.valueOf(r), 0))),
-    formatCentavos(result.rows.reduce((a, r) => a + r.totalCentavos, 0)),
-  ];
+  const { bill, room, billedCentavos } = sheet;
+  const { head, body, foot } = tableText(bill, sheet.members, sheet.trackers, sheet.result);
 
   const pad = 28;
   const cellPad = 14;

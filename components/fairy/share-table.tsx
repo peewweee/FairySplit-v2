@@ -84,6 +84,36 @@ export function costColumns(bill: Bill, trackers: Tracker[], result: BillResult)
   return columns;
 }
 
+/**
+ * The table as plain text: the header, one row per person, and the total row.
+ *
+ * The image and the PDF are both built from this, so they cannot disagree with each other, or
+ * with the screen, about which columns exist or what is in them. `memberIds` is the row order,
+ * for anything that needs to know who a row belongs to (the PDF's Paid boxes).
+ */
+export function tableText(
+  bill: Bill,
+  members: Member[],
+  trackers: Tracker[],
+  result: BillResult,
+): { head: string[]; body: string[][]; foot: string[]; memberIds: string[] } {
+  const nameOf = new Map(members.map((m) => [m.id, m.name]));
+  const columns = costColumns(bill, trackers, result);
+  const sum = (valueOf: (row: ShareRow) => number) =>
+    formatCentavos(result.rows.reduce((acc, r) => acc + valueOf(r), 0));
+
+  return {
+    head: ["Person", ...columns.map((c) => c.label), "Owes"],
+    body: result.rows.map((row) => [
+      nameOf.get(row.memberId) ?? "Someone",
+      ...columns.map((c) => formatCentavos(c.valueOf(row))),
+      formatCentavos(row.totalCentavos),
+    ]),
+    foot: ["Total", ...columns.map((c) => sum(c.valueOf)), sum((r) => r.totalCentavos)],
+    memberIds: result.rows.map((r) => r.memberId),
+  };
+}
+
 export function ShareTable({
   bill,
   trackers,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costColumns } from "@/components/fairy/share-table";
+import { costColumns, tableText } from "@/components/fairy/share-table";
 import type { BillResult, ShareRow } from "@/lib/billing/engine";
 import type { Bill } from "@/lib/data/types";
 
@@ -70,5 +70,53 @@ describe("costColumns", () => {
 
     const unlogged = columns.find((c) => c.key === "unlogged");
     expect(unlogged?.valueOf(row)).toBe(500);
+  });
+});
+
+describe("tableText", () => {
+  const bill = {
+    id: "b",
+    appliances: [],
+    paidMemberIds: [],
+  } as unknown as Bill;
+  const row = (memberId: string, shared: number, fixed: number): ShareRow => ({
+    memberId,
+    days: 1,
+    sharedCentavos: shared,
+    fixedCentavos: fixed,
+    meteredCentavos: 0,
+    otherCentavos: 0,
+    totalCentavos: shared + fixed,
+    breakdown: {},
+  });
+  const result = {
+    rows: [row("a", 50_000, 11_217), row("b", 41_520, 11_217), row("gone", 0, 0)],
+    residualCentavos: 0,
+    dailyFeeCentavos: 0,
+    grandTotalCentavos: 113_954,
+    warnings: [],
+  } as BillResult;
+  const text = tableText(
+    bill,
+    [
+      { id: "a", name: "Ana" },
+      { id: "b", name: "Ben" },
+    ],
+    [],
+    result,
+  );
+
+  it("heads the columns the screen shows, then who owes what", () => {
+    expect(text.head).toEqual(["Person", "Shared", "Shared equally", "Owes"]);
+    expect(text.body[0]).toEqual(["Ana", "₱500.00", "₱112.17", "₱612.17"]);
+    expect(text.memberIds).toEqual(["a", "b", "gone"]);
+  });
+
+  it("names someone who has left the room, rather than leaving a blank", () => {
+    expect(text.body[2][0]).toBe("Someone");
+  });
+
+  it("totals each column, and the totals add up to the bill", () => {
+    expect(text.foot).toEqual(["Total", "₱915.20", "₱224.34", "₱1,139.54"]);
   });
 });
