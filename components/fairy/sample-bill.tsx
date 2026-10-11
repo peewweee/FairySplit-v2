@@ -1,4 +1,5 @@
 import { Zap } from "lucide-react";
+import { Fact, SampleChip } from "@/components/fairy/mock-parts";
 import { formatCentavos, pesosToCentavos } from "@/lib/billing/money";
 import { SAMPLE_BILL, sampleBillFigures } from "@/lib/sample-bill";
 
@@ -9,17 +10,6 @@ import { SAMPLE_BILL, sampleBillFigures } from "@/lib/sample-bill";
  * screen reader to wade through. Every name and figure comes from `lib/sample-bill.ts`, and
  * none of it is real.
  */
-
-function Fact({ label, value, className }: { label: string; value: string; className?: string }) {
-  return (
-    <div className={className}>
-      <p className="fs-lab text-[10.5px]">{label}</p>
-      <p className="font-bold text-fairy-ink" data-numeric>
-        {value}
-      </p>
-    </div>
-  );
-}
 
 function Line({ label, value }: { label: string; value: string }) {
   return (
@@ -55,9 +45,7 @@ export function SampleBill() {
             <p className="text-[10.5px] font-semibold text-fairy-tint-ink">Electricity bill</p>
           </div>
         </div>
-        <span className="shrink-0 border border-fairy-tint-ink px-1.5 py-0.5 text-[9.5px] font-extrabold tracking-[0.14em] text-fairy-tint-ink">
-          SAMPLE
-        </span>
+        <SampleChip />
       </div>
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 border-b border-fairy-hair px-4 py-3">
@@ -85,7 +73,7 @@ export function SampleBill() {
           off the highlighted band (a tenth of its width each side, 14px above and below) so
           the band's corners sit inside it, and the margins keep it clear of the card's edge. */}
       <div className="px-4 pt-4 pb-5">
-        <p className="mb-5 text-center text-[11px] font-extrabold text-fairy-rose">
+        <p className="mb-5 text-[11px] font-extrabold text-fairy-rose">
           Your rate this month
         </p>
         <div className="relative mx-8">
