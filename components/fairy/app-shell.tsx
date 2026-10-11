@@ -62,6 +62,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Link href="/privacy" className="underline underline-offset-2 hover:text-fairy-ink">
             Privacy
           </Link>
+          <Link href="/terms" className="underline underline-offset-2 hover:text-fairy-ink">
+            Terms
+          </Link>
         </p>
       </footer>
     </>

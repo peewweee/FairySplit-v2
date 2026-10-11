@@ -421,9 +421,10 @@ touch a row if you are a member of the room it belongs to**.
 
 ### Privacy and deleting your data
 
-[`/privacy`](app/privacy/page.tsx) and [`/data-deletion`](app/data-deletion/page.tsx)
-are public pages, reachable signed out — Google's and Facebook's publishing flows
-both ask for them. There is no delete-my-account button yet: deleting an account
+[`/privacy`](app/privacy/page.tsx), [`/terms`](app/terms/page.tsx) and
+[`/data-deletion`](app/data-deletion/page.tsx) are public pages, reachable signed
+out — Google's and Facebook's publishing flows ask for them (`/terms` is what
+Google's consent screen links to; Meta's Terms field is optional). There is no delete-my-account button yet: deleting an account
 is done by email, as `/data-deletion` spells out. Members can rename or remove
 themselves from rooms first, and an account that created a room cannot be
 deleted while that room exists (`rooms.created_by` is `on delete restrict`).
@@ -440,7 +441,7 @@ deleted while that room exists (`rooms.created_by` is `on delete restrict`).
 /auth/callback                    where Google sends people back; swaps the code
                                   for a session
 /auth/confirm                     landing for an email-confirmation link
-/privacy, /data-deletion          public
+/privacy, /terms, /data-deletion  public
 /rooms/[roomId]                   Your tracking (the logs) + Bills
 /rooms/[roomId]/logs              logs history: a tab per log
 /rooms/[roomId]/settings          name, join code, people, delete
@@ -502,7 +503,7 @@ takes files, a third option sends the image straight to another app.
 app/                              routes. Pages gate access on the server; every
                                   screen is a client component
   auth/callback  auth/confirm     OAuth landing; email-link landing
-  privacy/ data-deletion/         public pages
+  privacy/ terms/ data-deletion/  public pages
   rooms/[roomId]/…                room, logs history, settings, bills
 proxy.ts                          session refresh only (Next 16's Proxy)
 

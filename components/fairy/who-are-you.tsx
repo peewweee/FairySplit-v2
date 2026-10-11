@@ -27,11 +27,11 @@ import { NAME_MAX, parseField, personNameSchema } from "@/lib/forms/schemas";
 /**
  * Routes where this must stay out of the way. It opens itself unprompted on a
  * first visit, which is exactly when somebody is most likely to be reading the
- * privacy policy or the data-deletion page: whoever opens those cold has to be
+ * privacy policy, the terms or the data-deletion page: whoever opens those has to be
  * able to read them. (Signed out there is no name to ask for at all, so the
  * header never renders this for a visitor; see <SignedInActions>.)
  */
-const QUIET_ROUTES = ["/auth", "/privacy", "/data-deletion"];
+const QUIET_ROUTES = ["/auth", "/privacy", "/terms", "/data-deletion"];
 
 export function WhoAreYou() {
   const pathname = usePathname();
