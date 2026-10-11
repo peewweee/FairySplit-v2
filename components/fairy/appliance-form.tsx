@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EnergyGuideInfo } from "@/components/fairy/energy-guide-info";
 import { Field } from "@/components/fairy/field";
 import { InfoPopover } from "@/components/fairy/info-popover";
 import { ErrorNote } from "@/components/fairy/shell-bits";
@@ -20,7 +21,12 @@ import {
   type Tracker,
 } from "@/lib/data";
 import {
-  dayCountSchema,
+  convertibleUnit,
+  kwhPerDayFromMonthly,
+  kwhPerHourFromMonthly,
+  type ConvertedUnit,
+} from "@/lib/billing/label-energy";
+import {
   hoursPerDaySchema,
   kwhPerMonthSchema,
   kwhPerUnitSchema,
@@ -37,6 +43,9 @@ export interface ApplianceDraft {
   /** null = shared equally. Otherwise the log its quantities come from. */
   trackerId: string | null;
 }
+
+/** The line under each energy field's label. The info icon beside it shows what to look for. */
+const CHECK_GUIDE = "Check your appliance's energy guide";
 
 /** The one built-in answer: it runs for everyone, so nobody logs against it. */
 const EQUALLY = "equally";
@@ -124,6 +133,32 @@ export function ApplianceForm({
   // "per unit" rather than claiming a day.
   const unitLabel = tracked && !picked ? "unit" : meta.unit;
 
+  // What the converter last wrote into the kWh field, so it can be dropped if the answer to
+  // "how is it charged?" changes to one that counts something else. null once the person types.
+  const [convertedAs, setConvertedAs] = useState<ConvertedUnit | null>(null);
+
+  /** The converter's unit for an answer to "how is it charged?", or null when it has none. */
+  function converterUnitFor(answer: string, justMade?: Tracker): ConvertedUnit | null {
+    const log =
+      (justMade?.id === answer ? justMade : null) ?? logs.find((t) => t.id === answer) ?? null;
+    if (log) return convertibleUnit(applianceModeForTracker(log.mode));
+    if (answer === TRACKED) return convertibleUnit("unpicked");
+    return convertibleUnit(answer === UNLINKED && legacyMode ? legacyMode : "always_on");
+  }
+  const converterUnit = converterUnitFor(choice);
+
+  /** Every change of answer goes through here. */
+  function chooseCharge(answer: string, justMade?: Tracker) {
+    // A converted figure is per day or per hour. Left under a log that counts something else it
+    // would bill the wrong amount (0.57 a "day" instead of 5.13 costs nine times too little),
+    // so it goes, and the person converts again for the new unit.
+    if (convertedAs && converterUnitFor(answer, justMade) !== convertedAs) {
+      setKwh("");
+      setConvertedAs(null);
+    }
+    setChoice(answer);
+  }
+
   function submit() {
     const parsedLabel = parseField(labelSchema, label);
     const parsedKwh = parseField(
@@ -192,8 +227,15 @@ export function ApplianceForm({
             note="Recommended for a refrigerator."
             help="Cost is energy per day × electricity rate × the period's day count."
             helpLabel="How the Equally cost is worked out"
-            onSelect={() => setChoice(EQUALLY)}
+            onSelect={() => chooseCharge(EQUALLY)}
           />
+
+          {/* Why Equally is greyed out, right under it rather than at the foot of the group. */}
+          {!allowAlwaysOn && (
+            <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-ember">
+              &ldquo;Equally&rdquo; needs the dates this bill covers. Fill in the date range above.
+            </p>
+          )}
 
           <ChargeOption
             checked={tracked}
@@ -204,7 +246,7 @@ export function ApplianceForm({
             // Deliberately does NOT choose a log. Picking one silently would
             // put a number on somebody's bill that nobody asked for.
             onSelect={() => {
-              setChoice(picked?.id ?? TRACKED);
+              chooseCharge(picked?.id ?? TRACKED);
               setErrors((e) => ({ ...e, tracker: undefined }));
             }}
           />
@@ -217,7 +259,7 @@ export function ApplianceForm({
               checked={choice === UNLINKED}
               label="Logged on this bill only"
               hint="Keeps the usage entries already on this bill."
-              onSelect={() => setChoice(UNLINKED)}
+              onSelect={() => chooseCharge(UNLINKED)}
             />
           )}
         </div>
@@ -229,7 +271,7 @@ export function ApplianceForm({
             <Select
               value={picked?.id ?? ""}
               onValueChange={(value) => {
-                setChoice(value);
+                chooseCharge(value);
                 setErrors((e) => ({ ...e, tracker: undefined }));
               }}
             >
@@ -285,27 +327,24 @@ export function ApplianceForm({
               // Straight to the log they just made — that is why they opened it.
               if (created) {
                 setJustAdded(created);
-                setChoice(created.id);
+                chooseCharge(created.id, created);
                 setErrors((e) => ({ ...e, tracker: undefined }));
               }
             }}
           />
         )}
 
-        {!allowAlwaysOn && (
-          <p className="text-[11.5px] leading-[1.5] font-medium text-fairy-ember">
-            &ldquo;Equally&rdquo; needs the dates this bill covers — its cost is
-            energy per day × electricity rate × days. Fill in From and To and it unlocks.
-          </p>
-        )}
       </div>
 
       <Field
         id="appliance-kwh"
         label={`Appliance energy per ${unitLabel}`}
+        labelAddon={<EnergyGuideInfo figure="perUnit" />}
+        hint={CHECK_GUIDE}
         value={kwh}
         onChange={(v) => {
           setKwh(v);
+          setConvertedAs(null);
           setErrors((e) => ({ ...e, kwh: undefined }));
         }}
         placeholder={mode === "always_on" ? "e.g. 1.2" : "e.g. 0.73"}
@@ -321,13 +360,17 @@ export function ApplianceForm({
         }
       />
 
-      <PerMonthConverter
-        mode={mode}
-        onConverted={(perUnit) => {
-          setKwh(String(perUnit));
-          setErrors((e) => ({ ...e, kwh: undefined }));
-        }}
-      />
+      {/* No converter for a per-cycle log: a label gives energy per cycle itself. */}
+      {converterUnit && (
+        <PerMonthConverter
+          unit={converterUnit}
+          onConverted={(perUnit) => {
+            setKwh(String(perUnit));
+            setConvertedAs(converterUnit);
+            setErrors((e) => ({ ...e, kwh: undefined }));
+          }}
+        />
+      )}
 
       <ErrorNote>{error}</ErrorNote>
 
@@ -349,22 +392,22 @@ export function ApplianceForm({
  * Section 10.3: the old spreadsheet stored "153.9 kWh per month" and
  * back-derived a per-hour figure, which made the aircon's apparent wattage
  * change with the length of the billing period. This converts once, up front,
- * and stores only the per-unit result.
+ * and stores only the per-unit result. A label's month is always 30 days and
+ * the label never says so, so the days are not asked for (`label-energy.ts`).
  */
 function PerMonthConverter({
-  mode,
+  unit,
   onConverted,
 }: {
-  mode: ApplianceMode;
+  unit: ConvertedUnit;
   onConverted: (perUnit: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [monthly, setMonthly] = useState("");
-  const [days, setDays] = useState("");
   const [hours, setHours] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const perDayOnly = mode === "always_on";
+  const perDayOnly = unit === "day";
 
   function convert() {
     const m = parseField(kwhPerMonthSchema, monthly);
@@ -372,13 +415,8 @@ function PerMonthConverter({
       setError(m.message);
       return;
     }
-    const d = parseField(dayCountSchema, days);
-    if (!d.ok || d.value <= 0) {
-      setError(d.ok ? "That month needs at least one day." : d.message);
-      return;
-    }
     if (perDayOnly) {
-      onConverted(round4(m.value / d.value));
+      onConverted(kwhPerDayFromMonthly(m.value));
       setOpen(false);
       setError(null);
       return;
@@ -388,7 +426,7 @@ function PerMonthConverter({
       setError(h.message);
       return;
     }
-    onConverted(round4(m.value / d.value / h.value));
+    onConverted(kwhPerHourFromMonthly(m.value, h.value));
     setOpen(false);
     setError(null);
   }
@@ -408,32 +446,24 @@ function PerMonthConverter({
 
   return (
     <div className="grid gap-3 rounded-xl border border-fairy-hair-2 bg-fairy-tint p-3">
-      {/* Two columns. With three fields the long first label gets a row to itself, rather
-          than wrapping in a third of the width and pushing its input out of line. */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3">
         <Field
           id="conv-monthly"
-          className={perDayOnly ? undefined : "sm:col-span-2"}
           label="Monthly energy consumption"
+          labelAddon={<EnergyGuideInfo figure="monthly" />}
+          hint={CHECK_GUIDE}
           value={monthly}
           onChange={setMonthly}
           placeholder="e.g. 153.9"
           suffix="kWh"
           inputMode="decimal"
         />
-        <Field
-          id="conv-days"
-          label="Days in the month"
-          value={days}
-          onChange={setDays}
-          placeholder="e.g. 30"
-          suffix="days"
-          inputMode="decimal"
-        />
         {!perDayOnly && (
           <Field
             id="conv-hours"
             label="Hours a day"
+            labelAddon={<EnergyGuideInfo figure="hours" />}
+            hint={CHECK_GUIDE}
             value={hours}
             onChange={setHours}
             placeholder="e.g. 9"
@@ -454,8 +484,6 @@ function PerMonthConverter({
     </div>
   );
 }
-
-const round4 = (n: number) => Math.round(n * 10_000) / 10_000;
 
 /**
  * One answer to "how is it charged?".

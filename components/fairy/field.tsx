@@ -17,6 +17,8 @@ export interface FieldProps {
   label: string;
   /** A small thing beside the label, outside the <label> itself (an info icon, say). */
   labelAddon?: ReactNode;
+  /** A small line directly under the label, above the input: where to find the figure. */
+  hint?: ReactNode;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -42,6 +44,7 @@ export function Field({
   id,
   label,
   labelAddon,
+  hint,
   value,
   onChange,
   placeholder,
@@ -60,6 +63,7 @@ export function Field({
   className,
   onEnter,
 }: FieldProps) {
+  const hintId = hint ? `${id}-hint` : undefined;
   const helperId = helper ? `${id}-helper` : undefined;
   const errorId = error ? `${id}-error` : undefined;
 
@@ -81,6 +85,12 @@ export function Field({
           <span className="text-[11px] font-medium text-fairy-grey">Optional</span>
         )}
       </div>
+
+      {hint && (
+        <p id={hintId} className="-mt-1 text-[11px] leading-[1.4] font-medium text-fairy-grey-strong">
+          {hint}
+        </p>
+      )}
 
       <div className="relative">
         {prefix && (
@@ -108,7 +118,7 @@ export function Field({
           }}
           aria-required={requirement === "required" || undefined}
           aria-invalid={Boolean(error)}
-          aria-describedby={cn(helperId, errorId) || undefined}
+          aria-describedby={cn(hintId, helperId, errorId) || undefined}
           className={cn(
             "h-10",
             prefix && "pl-7",
