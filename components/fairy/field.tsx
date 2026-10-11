@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 export interface FieldProps {
   id: string;
   label: string;
+  /** A small thing beside the label, outside the <label> itself (an info icon, say). */
+  labelAddon?: ReactNode;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -39,6 +41,7 @@ export interface FieldProps {
 export function Field({
   id,
   label,
+  labelAddon,
   value,
   onChange,
   placeholder,
@@ -63,14 +66,17 @@ export function Field({
   return (
     <div className={cn("grid gap-1.5", className)}>
       <div className="flex items-baseline justify-between gap-2">
-        <Label htmlFor={id} className="text-[12.5px] font-bold tracking-[-0.01em] text-fairy-ink">
-          {label}
-          {requirement === "required" && (
-            <span aria-hidden className="ml-0.5 font-bold text-fairy-danger">
-              *
-            </span>
-          )}
-        </Label>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor={id} className="text-[12.5px] font-bold tracking-[-0.01em] text-fairy-ink">
+            {label}
+            {requirement === "required" && (
+              <span aria-hidden className="ml-0.5 font-bold text-fairy-danger">
+                *
+              </span>
+            )}
+          </Label>
+          {labelAddon}
+        </div>
         {requirement === "optional" && (
           <span className="text-[11px] font-medium text-fairy-grey">Optional</span>
         )}
