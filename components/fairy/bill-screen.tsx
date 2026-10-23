@@ -117,9 +117,12 @@ function BillBody({
 
       <BillLogsPanel bill={bill} me={me} trackers={trackers.data ?? []} result={result} />
 
-      <div className="grid gap-5">
+      {/* `grid-cols-1` and not a bare `grid`: a bare grid's column grows to fit its widest
+          child, so the share table (wider than a phone) used to stretch the whole page past
+          the screen's margins instead of scrolling inside its own box. */}
+      <div className="grid grid-cols-1 gap-5">
         {/* The share table is the point of the screen, so it leads. */}
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <WarningBanner warnings={result?.warnings ?? []} />
 
           {/* An appliance pointing at a deleted log costs nothing, which looks

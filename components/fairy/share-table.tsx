@@ -145,7 +145,7 @@ export function ShareTable({
       <table className="w-full min-w-[34rem] border-collapse text-left">
         <thead>
           <tr className="border-b border-fairy-hair-2">
-            <Th>Person</Th>
+            <Th pinned>Person</Th>
             {columns.map((column) => (
               <Th key={column.key} right>
                 {column.label}
@@ -163,7 +163,7 @@ export function ShareTable({
             const paid = paidMemberIds?.includes(r.memberId) ?? false;
             return (
               <tr key={r.memberId} className="border-b border-fairy-hair">
-                <Td className="text-[13.5px] font-bold tracking-[-0.02em] text-fairy-ink">
+                <Td pinned className="text-[13.5px] font-bold tracking-[-0.02em] text-fairy-ink">
                   {nameOf.get(r.memberId) ?? "Someone"}
                 </Td>
                 {columns.map((column) => (
@@ -200,7 +200,11 @@ export function ShareTable({
 
         <tfoot>
           <tr className="border-t-[1.8px] border-fairy-ink bg-fairy-screen">
-            <Td className="text-[13.5px] font-extrabold tracking-[-0.02em] text-fairy-ink">
+            {/* The total row is tinted, so its pinned cell has to be too. */}
+            <Td
+              pinned
+              className="bg-fairy-screen text-[13.5px] font-extrabold tracking-[-0.02em] text-fairy-ink"
+            >
               Total
             </Td>
             {columns.map((column) => (
@@ -223,20 +227,31 @@ export function ShareTable({
   );
 }
 
+/**
+ * The first column stays put while the rest of the table scrolls sideways on a phone, so a
+ * row never loses whose it is. It needs a solid background (the numbers slide underneath it)
+ * and, on narrow screens only, a faint edge drawn INSIDE the cell: a collapsed table border
+ * belongs to the table, not the cell, and would scroll away.
+ */
+const PINNED = "sticky left-0 z-10 bg-card max-sm:shadow-[inset_-1px_0_0_var(--hair)]";
+
 function Th({
   children,
   right,
   emphasis,
+  pinned,
 }: {
   children?: React.ReactNode;
   right?: boolean;
   emphasis?: boolean;
+  pinned?: boolean;
 }) {
   return (
     <th
       scope="col"
       className={cn(
         "px-3.5 py-3 text-[11px] font-bold",
+        pinned && PINNED,
         right && "text-right",
         emphasis ? "text-fairy-ink" : "text-fairy-grey",
       )}
@@ -249,16 +264,19 @@ function Th({
 function Td({
   children,
   right,
+  pinned,
   className,
 }: {
   children?: React.ReactNode;
   right?: boolean;
+  pinned?: boolean;
   className?: string;
 }) {
   return (
     <td
       className={cn(
         "px-3.5 py-3 text-[13px] font-semibold tabular-nums",
+        pinned && PINNED,
         right && "text-right",
         className,
       )}

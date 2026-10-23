@@ -18,7 +18,15 @@ Philippine pesos (₱).
 [Rooms, accounts and privacy](#rooms-accounts-and-privacy) ·
 [Screens](#screens) · [Architecture](#architecture) ·
 [Design system](#design-system) · [Tests](#tests) · [Deployment](#deployment) ·
-[Known limits](#known-limits)
+[Known limits](#known-limits) · [Roadmap](docs/ROADMAP.md) ·
+[Launch checklist](docs/LAUNCH.md) · [Scaling](docs/SCALING.md)
+
+**Status (12 October 2026):** live, used by its owner's household, and not yet
+announced anywhere. Google is the only sign-in. What is built, what the plan still
+owes, the constraints and the order to do things in are in
+[`docs/ROADMAP.md`](docs/ROADMAP.md); what must be true before posting to dormitory
+Facebook pages is [`docs/LAUNCH.md`](docs/LAUNCH.md); what happens as users arrive, and
+what to do about it, is [`docs/SCALING.md`](docs/SCALING.md).
 
 ---
 
@@ -514,6 +522,12 @@ The share table is all money: one column per log, plus "Shared equally" and
 "Unlinked usage" when those exist, so the columns always add up to what somebody
 owes. *Edit log entries* on a summary row opens that log's history tab.
 
+On a phone the table is wider than the screen, so it scrolls sideways **inside its own
+box** and the rest of the page keeps its margins; the *Person* column stays pinned, so a
+row never loses whose it is. (The page's grids use `grid-cols-1` for this. A bare `grid`
+sizes its column to its widest child, which stretched the whole page past the screen's
+edges instead of letting the table scroll.)
+
 ### Sharing a split
 
 A **Share** button above the table offers two ways out, and neither needs a
@@ -559,6 +573,9 @@ lib/
     occupancy.ts    hours -> days, and the days a bill covers
     from-bill.ts    stored records -> engine input: the round-up, the bill's
                     date window, and the usage its logs supply
+    explain.ts      pure: the line that says in words what a log cost somebody
+    label-energy.ts pure: an energy label's monthly kWh -> a figure per day or
+                    per hour (a label's month is 30 days); never touches money
   tracking/
     elapsed.ts      pure: turning a running clock into a number. `now` is passed
                     in, never read from the system. Also holds HISTORY_DAYS and
@@ -592,6 +609,8 @@ lib/
   site.ts           where invite links point
   nav.ts            which room a URL belongs to (the menu marks it)
   sparkle.ts        the landing page's hand-drawn diamond sparkles, and where they go
+  sample-bill.ts, sample-energy-guide.ts, sample-energy-label.ts
+                    the invented figures behind the help dialogs' sample documents
 
 supabase/           schema.sql, verify-rls.sql, verify-checkpoint-clock.sql,
                     migrations/
@@ -604,7 +623,7 @@ components/ui/      shadcn/ui primitives
 Integer **centavos** everywhere. A rate is **millicents** — 1/1000 of a centavo,
 so `₱14.86/kWh` is `1_486_000`. In the database these are `bigint`, never numeric
 and never float. Formatting to `₱1,234.56` happens once, at render time. Nothing
-outside `lib/billing/money.ts` divides money or converts kWh.
+outside `lib/billing/money.ts` divides money or converts kWh into money.
 
 That conversion is easy to get wrong by a factor of ten and impossible to see in
 review, so `money.test.ts` pins it: a ₱10/kWh fridge at 1 kWh a day for 30 days
@@ -803,6 +822,15 @@ https://fairy-split-v2.vercel.app. Every push to `main` is built with
   *preview* URL needs that URL on the list too.
 - Invite links use `NEXT_PUBLIC_SITE_URL`, which defaults to the Vercel address.
   Set it when the app moves to its own domain.
+- **Region.** Vercel runs the pages in Washington DC (`iad1`; the `x-vercel-id` header
+  shows it), while the database answers in about 0.07 s from the Philippines. Set the
+  Function Region to Singapore (`sin1`) in the project's settings.
+- **Nothing watches it yet:** no error reporting, uptime monitor, analytics or CI. The
+  plan for each is in [`docs/LAUNCH.md`](docs/LAUNCH.md) and
+  [`docs/SCALING.md`](docs/SCALING.md).
+- Both Vercel's Hobby plan (non-commercial use only) and Supabase's free plan (pauses
+  after a week without activity, no backups) have limits that matter once real people
+  use this: see [`docs/ROADMAP.md`](docs/ROADMAP.md#constraints).
 
 ---
 
@@ -833,6 +861,24 @@ Written down rather than papered over.
   two different questions, but the screen does not say so.
 - **Pesos only**, and no payment processing, notifications or email beyond
   sign-in confirmation.
+- **Opening a room reads every log entry it has ever had.** The 120-day rule is applied
+  afterwards, in the browser, and rows are never deleted; and any write re-runs every
+  query on the page. Fine for a household, but the cost rises with the age of the data,
+  not with the number of users ([`docs/SCALING.md`](docs/SCALING.md), risk 3).
+- **A bill's split is recomputed, not stored.** Once the logs it reads are older than 120
+  days they are no longer loaded, so an old bill shows a different split from the one
+  that was paid.
+- **There is no realtime.** A housemate's change appears on your screen after your next
+  action or a reload.
+- **Joining is not throttled, and nothing caps what one account can create.** A join code
+  is about a billion possibilities and `join_room` accepts unlimited guesses; the
+  database has no text-length or size limits, only the app's.
+- **Google sign-in does not work inside Facebook's, Messenger's or Instagram's in-app
+  browser** (Google refuses embedded browsers). A visitor has to open the link in their
+  own browser, and the app does not tell them so yet.
+- **A bill's window follows the viewing device's time zone**, and the one-off midnight
+  split assumed Asia/Manila. Fine inside one country.
+- **Deleting a room cannot be undone**, and the free Supabase plan keeps no backups.
 
 ### Unmounted files
 
