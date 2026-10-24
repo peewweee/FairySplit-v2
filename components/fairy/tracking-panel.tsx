@@ -511,7 +511,8 @@ function ClockBody({
       {othersIn.length > 0 && (
         <p className="mt-2 text-[10.5px] font-medium text-fairy-grey-strong">
           {othersIn.map((m) => m.name).join(", ")}{" "}
-          {othersIn.length === 1 ? "is" : "are"} clocked in too.
+          {/* "Too" only makes sense if you are clocked in as well. */}
+          {othersIn.length === 1 ? "is" : "are"} clocked in{running ? " too" : ""}.
         </p>
       )}
 
