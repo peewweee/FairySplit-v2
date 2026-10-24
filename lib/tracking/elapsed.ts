@@ -34,18 +34,24 @@ export function hoursSince(startIso: string, nowMs: number): number {
   return Math.max(0, (nowMs - started) / MS_PER_HOUR);
 }
 
+/** The minute an instant falls in: what the screen shows, and all it shows. */
+const minuteOf = (ms: number) => Math.floor(ms / 60_000);
+
 /**
- * Whether a clock span already on the log describes the exact same event:
- * same start, same end, same people. A double-tap on "Add entry" or a
- * network retry resubmits identical data — this is how both repositories
- * recognise that and skip logging the same stretch twice, rather than
- * needing every caller to remember to check first.
+ * Whether a clock span already on the log describes the same event: the same
+ * people, over the same minutes. A double-tap on "Add entry", a network retry,
+ * or two housemates each logging the same night all resubmit one event — this
+ * is how both repositories and the add form recognise that and treat it as one
+ * entry, rather than logging the same stretch of time twice.
  *
- * Deliberately exact: nobody starts and stops the same appliance at the
- * precise same instant twice on purpose, so a match here is strong evidence
- * of a resubmission, not a coincidence. A typed entry (no span) is never a
- * match — "4 cycles, same day" is a far weaker signal, and could honestly be
- * two different loads of laundry.
+ * "The same" is what a person sees: the times are compared to the MINUTE, the
+ * way every screen prints them. A span from a live clock carries seconds the
+ * screen never shows (3:00:12 to 5:30:41 reads "3:00 AM–5:30 AM"), so comparing
+ * exact instants let two rows that look identical both be saved. A different
+ * minute is still a different entry, and so is a different set of people (in
+ * whatever order they were ticked). A typed entry (no span) is never a match —
+ * "4 cycles, same day" is a far weaker signal, and could honestly be two
+ * different loads of laundry.
  */
 export function isDuplicateSpan(
   existing: Pick<LogEntry, "startedAt" | "endedAt" | "participantIds">[],
@@ -53,12 +59,14 @@ export function isDuplicateSpan(
   endedAt: string,
   participantIds: string[],
 ): boolean {
-  const from = Date.parse(startedAt);
-  const to = Date.parse(endedAt);
+  const from = minuteOf(Date.parse(startedAt));
+  const to = minuteOf(Date.parse(endedAt));
   const wanted = [...participantIds].sort().join(",");
   return existing.some((e) => {
     if (!e.startedAt || !e.endedAt) return false;
-    if (Date.parse(e.startedAt) !== from || Date.parse(e.endedAt) !== to) return false;
+    if (minuteOf(Date.parse(e.startedAt)) !== from || minuteOf(Date.parse(e.endedAt)) !== to) {
+      return false;
+    }
     return [...e.participantIds].sort().join(",") === wanted;
   });
 }

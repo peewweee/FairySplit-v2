@@ -180,10 +180,19 @@ A date can only name a day the log will actually keep: nothing in the future,
 nothing past the [retention window](#retention). `min`/`max` steer the picker and
 every save checks again, because a date typed straight in ignores them.
 
-A double-tap on *Add entry*, or a retried request, cannot log the same stretch
-twice: a clock run with exactly the same start, end and people as one already on
-the log is skipped. Typed amounts are exempt — "4 cycles" twice in a day can
-honestly be two loads of laundry.
+The same stretch cannot be logged twice, whether by a double-tap on *Add entry*, a
+retried request, or two housemates each adding the same night: a clock run with the
+same people (ticked in any order) over the same **minutes** as one already on the log
+is skipped. "The same" is what the screen shows: a live clock's 3:00:12 to 5:30:41
+and a typed 3:00 to 5:30 both read *3:00 AM–5:30 AM*, so they are one entry; a
+different minute, or a different set of people, is not. The add form says so before
+you save: a date already on the log reads *Already on this log*, is left out of
+*Save N entries*, and *Save* is disabled when every date is. Typed amounts are
+exempt — "4 cycles" twice in a day can honestly be two loads of laundry.
+
+Two entries that were saved before this rule can still sit side by side; delete one.
+Bills already count overlapping use once ([Overlapping use](#overlapping-use)), but a
+person's *Hours in the unit* still adds their own entries up one by one.
 
 ### Catching up on several days
 
@@ -739,7 +748,7 @@ product screens, so there is no dark palette to port.
 
 ## Tests
 
-`npm test` — **285 tests** in 24 files, all quick. No component is rendered and
+`npm test` — **290 tests** in 24 files, all quick. No component is rendered and
 nothing talks to a real database; everything below the UI is proven directly.
 The one thing it cannot reach is the SQL itself, which is what
 [`supabase/verify-rls.sql`](supabase/verify-rls.sql) and
@@ -751,14 +760,14 @@ are for.
 | `lib/billing/engine.test.ts` | 32 | the ladder, the property run, scaling, the overflow guard |
 | `lib/billing/from-bill.test.ts` | 34 | the bill's date window, usage drawn from logs, overrides, shared entries, overlapping use |
 | `lib/billing/money.test.ts` | 20 | centavos, millicents, largest-remainder, equal shares |
-| `lib/tracking/elapsed.test.ts` | 48 | the daily reset, midnight-spanning runs, where a run is cut (including across a daylight-saving change), per-person shares, duplicate detection |
+| `lib/tracking/elapsed.test.ts` | 50 | the daily reset, midnight-spanning runs, where a run is cut (including across a daylight-saving change), per-person shares, duplicate detection to the minute |
 | `lib/tracking/overlap.test.ts` | 11 | splitting overlapping clock spans |
 | `lib/tracking/span.test.ts` | 9 | a span has to end after it starts, on the same day: 9 AM to 3:59 AM is refused, a night past midnight is two entries, the whole day is fine |
 | `lib/tracking/time-of-day.test.ts` | 23 | which hours, minutes and halves of the day a time field blocks — *To* after 4:00 AM, *From* before 3:08 AM — and that the three lists reach exactly the allowed minutes |
 | `lib/forms/schemas.test.ts` | 8 | one 40-character limit for room names and display names: exactly 40 passes, 41 does not, measured after trimming |
 | `lib/nav.test.ts` | 2 | which room a URL belongs to, for the menu's highlight |
 | `lib/data/supabase-repository.test.ts` | 14 | "which member is me" is answered by account; a clock is cut before it is stopped, and still stops if the cut fails |
-| `lib/data/local-repository.test.ts` | 9 | a run across midnight becomes one entry per day: where each ends, who it is charged to, nothing lost |
+| `lib/data/local-repository.test.ts` | 12 | a run across midnight becomes one entry per day: where each ends, who it is charged to, nothing lost; and the same stretch logged twice, by two people or with seconds on one copy, is one entry |
 | `lib/auth/*.test.ts` | 27 | an invite surviving sign-in (cleaning the code, the cookie, the callback), the landing path a failed sign-in comes back to, the notice each one gets, and the header's "Sign in" reaching the popup |
 | `lib/sparkle.test.ts` | 17 | the landing page's sparkles: each is one line round a four-pointed diamond with its points where they belong, kept out of the middle, and different from the last; and how a field of them opens — one start moment each, spread evenly over the first second, the first at once, from any corner and either way round |
 | `lib/sample-bill.test.ts` | 3 | the mock electricity bill behind the rate field's info icon adds up: the meter's kWh, its charges and the rate it circles agree to the centavo |

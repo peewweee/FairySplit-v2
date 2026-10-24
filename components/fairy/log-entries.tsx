@@ -17,7 +17,12 @@ import { Input } from "@/components/ui/input";
 import { ErrorNote } from "@/components/fairy/shell-bits";
 import { ParticipantPicker } from "@/components/fairy/participant-picker";
 import { TimeField } from "@/components/fairy/time-field";
-import { HISTORY_DAYS, amountToday, describeQuantity } from "@/lib/tracking/elapsed";
+import {
+  HISTORY_DAYS,
+  amountToday,
+  describeQuantity,
+  isDuplicateSpan,
+} from "@/lib/tracking/elapsed";
 import { END_NOT_AFTER_START, spanFromTimes } from "@/lib/tracking/span";
 import {
   TRACKER_MODE_META,
@@ -223,6 +228,19 @@ export function NewRunForm({
 
   const ordered = [...picked].sort((a, b) => a.day.localeCompare(b.day));
 
+  // A date already on this log, for the same people over the same minutes, would be skipped on
+  // save: the repository treats it as the same entry (a housemate may have logged it already).
+  // Say so on the date and leave it out of the count, rather than letting the form close with
+  // nothing new on the list. The repository stays the authority; this only explains it.
+  const alreadyLogged = (entry: PickedDay) => {
+    const span = spanFromTimes(entry.day, entry.from, entry.to);
+    return (
+      span.ok &&
+      isDuplicateSpan(tracker.entries, span.startedAt, span.endedAt, sharable ? entry.people : [me.id])
+    );
+  };
+  const fresh = ordered.filter((entry) => !alreadyLogged(entry));
+
   function retime(next: { from?: string; to?: string }) {
     setError(null);
     if (next.from !== undefined) setFrom(next.from);
@@ -334,12 +352,18 @@ export function NewRunForm({
               </span>
               {/* Only a shared log has a choice to show. The occupancy clock is
                   always yours alone, so naming you would be noise. */}
-              {sharable && (
-                <span className="text-[10px] leading-[1.35] font-medium text-fairy-tint-ink/70">
-                  {entry.people.length > 0
-                    ? describePeople(members, entry.people)
-                    : "nobody yet"}
+              {alreadyLogged(entry) ? (
+                <span className="text-[10px] leading-[1.35] font-bold text-fairy-ember">
+                  Already on this log
                 </span>
+              ) : (
+                sharable && (
+                  <span className="text-[10px] leading-[1.35] font-medium text-fairy-tint-ink/70">
+                    {entry.people.length > 0
+                      ? describePeople(members, entry.people)
+                      : "nobody yet"}
+                  </span>
+                )
               )}
             </li>
           ))}
@@ -352,9 +376,13 @@ export function NewRunForm({
         <Button size="sm" variant="ghost" onClick={onDone}>
           Cancel
         </Button>
-        <Button size="sm" disabled={action.pending} onClick={() => void submit()}>
+        <Button
+          size="sm"
+          disabled={action.pending || fresh.length === 0}
+          onClick={() => void submit()}
+        >
           <Check className="size-3.5" aria-hidden />
-          Save {ordered.length} {ordered.length === 1 ? "entry" : "entries"}
+          Save {fresh.length} {fresh.length === 1 ? "entry" : "entries"}
         </Button>
       </div>
     </div>

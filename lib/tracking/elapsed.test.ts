@@ -405,6 +405,20 @@ describe("isDuplicateSpan", () => {
     expect(isDuplicateSpan([span(start, end, ["JEM"])], start, almost, ["JEM"])).toBe(false);
   });
 
+  it("matches two spans that read the same on screen, even when their seconds differ", () => {
+    // A live clock's 3:00:12 to 5:30:41 and a typed 3:00 to 5:30 both read "3:00 AM–5:30 AM".
+    const clockStart = "2026-08-18T22:00:12.500Z";
+    const clockEnd = "2026-08-18T23:30:41.000Z";
+    expect(isDuplicateSpan([span(clockStart, clockEnd, ["JEM"])], start, end, ["JEM"])).toBe(true);
+    expect(isDuplicateSpan([span(start, end, ["JEM"])], clockStart, clockEnd, ["JEM"])).toBe(true);
+  });
+
+  it("is a different entry the moment the minute on screen changes", () => {
+    const lastSecond = "2026-08-18T22:00:59.999Z";
+    const nextMinute = "2026-08-18T22:01:00.000Z";
+    expect(isDuplicateSpan([span(lastSecond, end, ["JEM"])], nextMinute, end, ["JEM"])).toBe(false);
+  });
+
   it("does not match a different, non-overlapping person on the same span", () => {
     expect(isDuplicateSpan([span(start, end, ["JEM"])], start, end, ["JANNA"])).toBe(false);
   });

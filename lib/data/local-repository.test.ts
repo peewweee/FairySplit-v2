@@ -131,6 +131,50 @@ describe("a run that crosses midnight", () => {
   });
 });
 
+describe("the same stretch logged twice", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  const startedAt = new Date(2026, 7, 21, 3, 0).toISOString();
+  const endedAt = new Date(2026, 7, 21, 5, 30).toISOString();
+
+  it("is one entry when a housemate adds it after another, whatever order the people are ticked in", async () => {
+    const { repo, clock, me, other } = await setup(EVENING);
+    await repo.addClockEntries(clock.id, [{ startedAt, endedAt, participantIds: [me, other] }]);
+    const after = await repo.addClockEntries(clock.id, [
+      { startedAt, endedAt, participantIds: [other, me] },
+    ]);
+    expect(after.entries.filter((e) => e.startedAt)).toHaveLength(1);
+  });
+
+  it("is still one entry when one copy came from a live clock and has seconds on it", async () => {
+    const { repo, clock, me, other } = await setup(EVENING);
+    await repo.addClockEntries(clock.id, [
+      {
+        startedAt: new Date(2026, 7, 21, 3, 0, 12).toISOString(),
+        endedAt: new Date(2026, 7, 21, 5, 30, 41).toISOString(),
+        participantIds: [me, other],
+      },
+    ]);
+    const after = await repo.addClockEntries(clock.id, [
+      { startedAt, endedAt, participantIds: [me, other] },
+    ]);
+    expect(after.entries.filter((e) => e.startedAt)).toHaveLength(1);
+  });
+
+  it("is two entries when it is not the same people, or not the same minutes", async () => {
+    const { repo, clock, me, other } = await setup(EVENING);
+    await repo.addClockEntries(clock.id, [{ startedAt, endedAt, participantIds: [me, other] }]);
+    await repo.addClockEntries(clock.id, [{ startedAt, endedAt, participantIds: [me] }]);
+    const after = await repo.addClockEntries(clock.id, [
+      { startedAt, endedAt: new Date(2026, 7, 21, 5, 31).toISOString(), participantIds: [me, other] },
+    ]);
+    expect(after.entries.filter((e) => e.startedAt)).toHaveLength(3);
+  });
+});
+
 describe("a run that does not cross midnight", () => {
   afterEach(() => {
     vi.useRealTimers();
